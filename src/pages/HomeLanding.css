@@ -1,0 +1,113 @@
+/* 로그인 이전 랜딩 페이지 스타일 */
+
+.home-landing {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* 배경 이미지 */
+.home-landing::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/calendar-preview.jpg'); /* 실제 공유달력 사용 이미지 경로 */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(8px);
+  opacity: 0.3;
+  z-index: 0;
+}
+
+/* 배경 오버레이 (어둡게) */
+.home-landing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+/* 컨텐츠 컨테이너 */
+.home-landing-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: white;
+  padding: 2rem;
+}
+
+/* 로고 */
+.home-landing-logo {
+  font-size: 4rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.1em;
+}
+
+/* 로그인 버튼 */
+.home-landing-login-btn {
+  background-color: white;
+  color: black;
+  border: 2px solid white;
+  border-radius: 0.5rem;
+  padding: 1rem 2.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.home-landing-login-btn:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.home-landing-login-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .home-landing-logo {
+    font-size: 2.5rem;
+  }
+
+  .home-landing-login-btn {
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+  }
+
+  .home-landing-content {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-landing-logo {
+    font-size: 2rem;
+  }
+
+  .home-landing-login-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+}
+
