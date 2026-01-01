@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { findCalendarByCode } from '../services/calendar';
 import { setConfirmedDate } from '../services/calendar';
@@ -8,6 +8,8 @@ import type { Calendar, Availability } from '../types';
 import { debugLog, debugError } from '../utils/debug';
 import { getAnonymousUserId } from '../utils/anonymousUser';
 import { PasswordModal } from '../components/PasswordModal';
+import { setMetaTags, resetMetaTags } from '../utils/metaTags';
+import { captureCalendarImage } from '../utils/captureCalendar';
 import './CalendarDetail.css';
 
 // 날짜 유틸리티 함수들
@@ -40,6 +42,7 @@ export function CalendarDetail() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -104,6 +107,35 @@ export function CalendarDetail() {
           usePassword: calendarData.usePassword,
         });
 
+        // ========== 공유 미리보기 메타 태그 설정 ==========
+        // 이 부분을 수정하여 공유 시 표시되는 정보를 변경할 수 있습니다.
+        const calendarUrl = `${window.location.origin}/calendar/${calendarData.code}`;
+        const defaultPreviewImageUrl = `${window.location.origin}/calendar-preview.jpg`;
+        
+        // 기본 메타 태그 설정 (이미지 캡처 전)
+        setMetaTags({
+          // 브라우저 탭 제목
+          title: `${calendarData.title} - 만나요`,
+          
+          // 검색 엔진 및 소셜 미디어 설명
+          description: `"${calendarData.title}" 달력에 참여하여 약속 날짜를 조율해보세요.`,
+          
+          // Open Graph (Facebook, LinkedIn 등)
+          ogTitle: calendarData.title,
+          ogDescription: `함께 약속 날짜를 정해보세요! "${calendarData.title}" 달력에 참여하세요.`,
+          ogImage: defaultPreviewImageUrl,
+          ogImageWidth: '1200',
+          ogImageHeight: '630',
+          ogType: 'website',
+          ogUrl: calendarUrl,
+          
+          // Twitter Card
+          twitterCard: 'summary_large_image',
+          twitterTitle: calendarData.title,
+          twitterDescription: `함께 약속 날짜를 정해보세요! "${calendarData.title}" 달력에 참여하세요.`,
+          twitterImage: defaultPreviewImageUrl,
+        });
+
         // 비밀번호가 필요한 경우 비밀번호 모달 표시
         if (calendarData.usePassword && calendarData.password) {
           // 로컬 스토리지에서 인증 상태 확인
@@ -160,12 +192,69 @@ export function CalendarDetail() {
     };
   }, [calendar?.id, passwordVerified]);
 
-  // 컴포넌트 언마운트 시 타이머 정리
+  // 달력 이미지 캡처 (렌더링 완료 후)
+  useEffect(() => {
+    // 달력이 로드되고, 비밀번호 인증이 완료되었으며, 로딩이 끝난 후에만 캡처
+    if (!calendar || loading || !passwordVerified) return;
+    
+    // 비밀번호가 필요한데 인증되지 않은 경우 캡처하지 않음
+    if (calendar.usePassword && calendar.password && !passwordVerified) {
+      return;
+    }
+
+    // 렌더링 완료를 위해 약간의 지연
+    const captureTimer = setTimeout(async () => {
+      if (!calendarContainerRef.current) {
+        debugLog('CALENDAR_DETAIL', '캡처할 컨테이너를 찾을 수 없음');
+        return;
+      }
+
+      try {
+        debugLog('CALENDAR_DETAIL', '달력 이미지 캡처 시작', { calendarId: calendar.id });
+        
+        // 달력 컨테이너 캡처
+        const imageUrl = await captureCalendarImage(calendarContainerRef.current, {
+          width: 1200,
+          height: 630,
+          quality: 0.7,
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+        });
+
+        debugLog('CALENDAR_DETAIL', '달력 이미지 캡처 완료', { 
+          calendarId: calendar.id,
+          imageSize: imageUrl.length 
+        });
+
+        // 캡처한 이미지로 메타 태그 업데이트
+        const calendarUrl = `${window.location.origin}/calendar/${calendar.code}`;
+        setMetaTags({
+          ogImage: imageUrl,
+          ogImageWidth: '1200',
+          ogImageHeight: '630',
+          twitterImage: imageUrl,
+          ogUrl: calendarUrl,
+        });
+
+      } catch (error) {
+        debugError('CALENDAR_DETAIL', '달력 이미지 캡처 실패', error);
+        // 캡처 실패 시 기본 이미지 사용 (이미 설정됨)
+      }
+    }, 1000); // 렌더링 완료 대기
+
+    return () => {
+      clearTimeout(captureTimer);
+    };
+  }, [calendar, loading, passwordVerified]);
+
+  // 컴포넌트 언마운트 시 타이머 정리 및 메타 태그 리셋
   useEffect(() => {
     return () => {
       if (longPressTimer) {
         clearTimeout(longPressTimer);
       }
+      // 페이지를 떠날 때 기본 메타 태그로 리셋
+      resetMetaTags();
     };
   }, [longPressTimer]);
 
@@ -450,7 +539,7 @@ export function CalendarDetail() {
 
   return (
     <div className="calendar-detail-page">
-      <div className="calendar-detail-container">
+      <div className="calendar-detail-container" ref={calendarContainerRef}>
         <div className="calendar-header">
           <div className="calendar-header-top">
             <h1>{calendar.title}</h1>
