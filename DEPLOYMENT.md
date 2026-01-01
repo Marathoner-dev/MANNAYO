@@ -112,15 +112,24 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
         request.resource.data.createdBy == request.auth.uid;
+      
+      // 가용성 데이터 (서브컬렉션) - 모든 사용자가 읽기/쓰기 가능
+      match /availability/{availabilityId} {
+        allow read, write: if true;
+      }
     }
     
-    // 가용성 데이터 (모든 사용자가 읽기/쓰기 가능)
+    // 기존 독립 availability 컬렉션 (마이그레이션 전 호환성을 위해 유지)
+    // 서브컬렉션 구조로 마이그레이션 후 제거 가능
     match /availability/{availabilityId} {
       allow read, write: if true;
     }
   }
 }
 ```
+
+**중요**: 서브컬렉션 구조(`calendars/{calendarId}/availability`)에 대한 보안 규칙이 포함되어 있습니다. 
+이 규칙이 없으면 "Missing or insufficient permissions" 오류가 발생합니다.
 
 ## 5단계: 배포 확인
 

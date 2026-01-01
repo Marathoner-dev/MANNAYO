@@ -6,7 +6,6 @@ import { toggleAvailability, subscribeAvailability } from '../services/availabil
 import { useAuth } from '../contexts/AuthContext';
 import type { Calendar, Availability } from '../types';
 import { debugLog, debugError } from '../utils/debug';
-import { getAnonymousUserId } from '../utils/anonymousUser';
 import { PasswordModal } from '../components/PasswordModal';
 import { setMetaTags, resetMetaTags } from '../utils/metaTags';
 import { captureCalendarImage } from '../utils/captureCalendar';
@@ -172,22 +171,41 @@ export function CalendarDetail() {
     loadCalendar();
   }, [code]);
 
-  // 가용성 데이터 실시간 구독 (로그인 없이도 가능, 비밀번호 인증 후)
+  // 가용성 데이터 변경 감지 및 사이트 자동 업데이트 (로그인 없이도 가능, 비밀번호 인증 후)
   useEffect(() => {
     if (!calendar?.id) return;
     
-    // 비밀번호가 필요한데 인증되지 않은 경우 구독하지 않음
+    // 비밀번호가 필요한데 인증되지 않은 경우 변경 감지하지 않음
     if (calendar.usePassword && calendar.password && !passwordVerified) {
+      debugLog('CALENDAR_DETAIL', '비밀번호 미인증으로 변경 감지 건너뜀', { calendarId: calendar.id });
       return;
     }
 
-    debugLog('CALENDAR_DETAIL', '가용성 구독 시작', { calendarId: calendar.id });
+    debugLog('CALENDAR_DETAIL', '가용성 데이터 변경 감지 시작', { 
+      calendarId: calendar.id,
+      passwordVerified,
+    });
+    
     const unsubscribe = subscribeAvailability(calendar.id, (data) => {
-      setAvailability(data);
+      debugLog('CALENDAR_DETAIL', '데이터베이스 변경 감지 - 사이트 상태 업데이트', {
+        calendarId: calendar.id,
+        count: data.length,
+        dates: data.map(av => av.date).slice(0, 5), // 처음 5개 날짜만 로그
+        unavailableDates: data.filter(av => av.isUnavailable).map(av => av.date).slice(0, 5),
+      });
+      
+      // 데이터베이스 변경사항을 감지하여 사이트 상태 업데이트
+      // 새로운 배열 참조를 생성하여 React가 변경을 감지하도록 함
+      setAvailability([...data]);
+      
+      debugLog('CALENDAR_DETAIL', '상태 업데이트 완료 - 리렌더링 트리거', {
+        calendarId: calendar.id,
+        newAvailabilityCount: data.length,
+      });
     });
 
     return () => {
-      debugLog('CALENDAR_DETAIL', '가용성 구독 해제');
+      debugLog('CALENDAR_DETAIL', '가용성 데이터 변경 감지 해제', { calendarId: calendar.id });
       unsubscribe();
     };
   }, [calendar?.id, passwordVerified]);
@@ -261,18 +279,46 @@ export function CalendarDetail() {
   const handleDateClick = async (date: string) => {
     if (!calendar?.id) return;
 
+    // 비밀번호가 필요한데 인증되지 않은 경우
+    if (calendar.usePassword && calendar.password && !passwordVerified) {
+      setShowPasswordModal(true);
+      return;
+    }
+
     // 길게 누르기 중이면 클릭 무시
     if (longPressDate === date) {
       return;
     }
 
     try {
-      debugLog('CALENDAR_DETAIL', '날짜 클릭', { date, calendarId: calendar.id });
-      await toggleAvailability(calendar.id, date);
+      debugLog('CALENDAR_DETAIL', '날짜 클릭 - Firestore에 저장 시작 (모든 사용자에게 적용)', { 
+        date, 
+        calendarId: calendar.id,
+      });
+      
+      // Firestore에 실제로 저장 (모든 사용자에게 공통으로 적용)
+      const updatedAvailability = await toggleAvailability(calendar.id, date);
+      
+      debugLog('CALENDAR_DETAIL', 'Firestore 저장 완료', {
+        date,
+        availabilityId: updatedAvailability.id,
+        isUnavailable: updatedAvailability.isUnavailable,
+      });
+      
       setSelectedDate(date);
+      
+      // 성공 메시지 (선택사항)
+      // console.log(`날짜 ${date}가 ${updatedAvailability.isUnavailable ? '불가능' : '가능'}으로 설정되었습니다.`);
+      
     } catch (err: any) {
-      debugError('CALENDAR_DETAIL', '가용성 토글 실패', err);
-      alert(err.message || '날짜 상태 변경에 실패했습니다.');
+      debugError('CALENDAR_DETAIL', 'Firestore 저장 실패', err);
+      console.error('Firestore 저장 에러 상세:', {
+        error: err,
+        code: err.code,
+        message: err.message,
+        stack: err.stack,
+      });
+      alert(`날짜 상태 변경에 실패했습니다: ${err.message || err.code || '알 수 없는 오류'}`);
     }
   };
 
@@ -338,12 +384,9 @@ export function CalendarDetail() {
   };
 
   const isDateUnavailable = (date: string): boolean => {
-    // 로그인한 사용자 또는 익명 사용자 모두 확인
-    const userId = currentUser?.uid || getAnonymousUserId();
-    const userAvailability = availability.find(
-      (av) => av.userId === userId && av.date === date
-    );
-    return userAvailability?.isUnavailable || false;
+    // 날짜별로 관리되므로 사용자 구분 없이 모든 사용자에게 동일하게 적용
+    const dateAvailability = availability.find((av) => av.date === date);
+    return dateAvailability?.isUnavailable || false;
   };
 
 

@@ -20,7 +20,6 @@ export interface Calendar {
 export interface Availability {
   id: string;
   calendarId: string;
-  userId: string;
   date: string; // YYYY-MM-DD
   isUnavailable: boolean;
   createdAt: Date;

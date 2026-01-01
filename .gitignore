@@ -23,4 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
-deployment.md
+DEPLOYMENT.md
+firestore.rules
+FIRESTORE_RULES.md
