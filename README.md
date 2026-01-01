@@ -69,6 +69,46 @@ npm run dev
 npm run build
 ```
 
+## 배포 (Netlify)
+
+### 1. GitHub 저장소 생성 및 푸시
+
+```bash
+# GitHub에서 새 저장소 생성 후
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+git branch -M main
+git push -u origin main
+```
+
+### 2. Netlify 배포
+
+1. [Netlify](https://www.netlify.com/)에 로그인
+2. "Add new site" → "Import an existing project" 선택
+3. GitHub 저장소 연결
+4. 빌드 설정 (자동 감지됨):
+   - **Build command**: `npm run build`
+   - **Publish directory**: `dist`
+5. 환경 변수 설정:
+   - Site settings → Environment variables에서 다음 변수 추가:
+     - `VITE_FIREBASE_API_KEY`
+     - `VITE_FIREBASE_AUTH_DOMAIN`
+     - `VITE_FIREBASE_PROJECT_ID`
+     - `VITE_FIREBASE_STORAGE_BUCKET`
+     - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+     - `VITE_FIREBASE_APP_ID`
+6. "Deploy site" 클릭
+
+### 3. Firebase 인증 도메인 추가
+
+Netlify 배포 후 생성된 도메인을 Firebase Console에 추가해야 합니다:
+
+1. [Firebase Console](https://console.firebase.google.com/) → Authentication → Settings
+2. "Authorized domains"에 Netlify 도메인 추가 (예: `your-site.netlify.app`)
+
+### 4. Firestore 보안 규칙 확인
+
+배포 환경에서도 Firestore 보안 규칙이 올바르게 설정되어 있는지 확인하세요.
+
 ## 개발 진행 상황
 
 ### ✅ Phase 1: Firebase 설정 및 인증 (완료)
@@ -79,33 +119,39 @@ npm run build
 - [x] 인증 컨텍스트 및 훅 생성
 - [x] 기본 UI 구성 (Header, 라우팅)
 
-### 🔄 Phase 2: 달력 생성 및 참여 (진행 예정)
-- [ ] 공유달력 생성 기능
-- [ ] 코드로 참여 기능
-- [ ] 공유달력 리스트 페이지
+### ✅ Phase 2: 달력 생성 및 참여 (완료)
+- [x] 공유달력 생성 기능
+- [x] 코드로 참여 기능
+- [x] 공유달력 리스트 페이지
+- [x] 비밀번호 보호 기능
 
-### 📋 Phase 3: 달력 뷰 및 상호작용 (예정)
-- [ ] 달력 UI 구현
-- [ ] 날짜 클릭 토글 기능
-- [ ] 실시간 업데이트
+### ✅ Phase 3: 달력 뷰 및 상호작용 (완료)
+- [x] 달력 UI 구현 (월별 뷰)
+- [x] 날짜 클릭 토글 기능
+- [x] 실시간 업데이트
+- [x] 확정일 설정 (길게 누르기)
+- [x] 달력 공유 기능
+- [x] 비로그인 사용자 접근 지원
 
-### 🎨 Phase 4: 확정일 및 UI 개선 (예정)
-- [ ] 약속 확정일 기능
-- [ ] 스타일링 및 UX 개선
+### 🎨 Phase 4: UI 개선 (완료)
+- [x] 스타일링 및 UX 개선
+- [x] 반응형 디자인
+- [x] 로딩 및 에러 처리
 
 ## 주요 기능
 
-### 현재 구현된 기능
+### 구현된 기능
 - ✅ 구글 소셜 로그인
 - ✅ 인증 상태 관리 (Firebase Auth)
-- ✅ 기본 네비게이션
-
-### 예정된 기능
-- 공유달력 생성 (제목, 비밀번호 옵션)
-- 코드로 달력 참여
-- 달력 리스트 조회
-- 날짜별 가능/불가 표시
-- 약속 확정일 설정
+- ✅ 공유달력 생성 (제목, 비밀번호 옵션)
+- ✅ 코드로 달력 참여
+- ✅ 달력 리스트 조회
+- ✅ 날짜별 가능/불가 표시 (클릭 토글)
+- ✅ 약속 확정일 설정 (길게 누르기)
+- ✅ 실시간 업데이트 (Firestore 실시간 구독)
+- ✅ 달력 공유 (링크 복사)
+- ✅ 비로그인 사용자 접근 지원
+- ✅ 비밀번호 보호 달력
 
 ## 라이선스
 
