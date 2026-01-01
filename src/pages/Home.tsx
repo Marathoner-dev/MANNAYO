@@ -63,8 +63,9 @@ export function Home() {
       <div className="home-landing">
         <div className="home-landing-content">
           <h1 className="home-landing-logo">MANNAYO</h1>
+          <p className="home-subtitle">Copy, Paste, Share, 쉽고 빠르게 표시하는 서로의 일정</p>
           <Link to="/login" className="home-landing-login-btn">
-            로그인하기
+            공유달력 만들러가기
           </Link>
         </div>
       </div>
