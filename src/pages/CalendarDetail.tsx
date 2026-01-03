@@ -12,12 +12,17 @@ import { captureCalendarImage } from '../utils/captureCalendar';
 import './CalendarDetail.css';
 
 // 날짜 유틸리티 함수들
+// 날짜 유틸리티 함수들
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  // 로컬 시간대를 유지하여 YYYY-MM-DD 형식으로 변환
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getDateKey(year: number, month: number, day: number): string {
@@ -375,6 +380,24 @@ export function CalendarDetail() {
     }
   };
 
+  const handleCancelConfirmedDate = async () => {
+    if (!calendar) return;
+
+    if (!confirm('확정일을 취소하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      debugLog('CALENDAR_DETAIL', '확정일 취소', { calendarId: calendar.id });
+      await setConfirmedDate(calendar.id, null);
+      setCalendar({ ...calendar, confirmedDate: null });
+      alert('확정일이 취소되었습니다.');
+    } catch (err: any) {
+      debugError('CALENDAR_DETAIL', '확정일 취소 실패', err);
+      alert(err.message || '확정일 취소에 실패했습니다.');
+    }
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
   };
@@ -607,7 +630,18 @@ export function CalendarDetail() {
           <div className="calendar-info">
             <span className="code-badge">코드: {calendar.code}</span>
             {calendar.confirmedDate && (
-              <span className="confirmed-badge">확정일: {calendar.confirmedDate}</span>
+              <div className="confirmed-date-info">
+                <span className="confirmed-badge">확정일: {calendar.confirmedDate}</span>
+                {currentUser && calendar.createdBy === currentUser.uid && (
+                  <button
+                    onClick={handleCancelConfirmedDate}
+                    className="btn btn-outline btn-small"
+                    style={{ marginLeft: '0.5rem' }}
+                  >
+                    확정 취소
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

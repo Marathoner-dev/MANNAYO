@@ -20,7 +20,18 @@ export async function toggleAvailability(
   calendarId: string,
   date: string
 ): Promise<Availability> {
-  debugLog('AVAILABILITY', 'toggleAvailability 시작', { calendarId, date });
+  // 날짜 형식 검증 및 정규화 (YYYY-MM-DD 형식 보장)
+  // 사용자가 클릭한 날짜와 동일하게 저장되도록 보장
+  const normalizedDate = date.trim();
+  
+  // 날짜 형식 검증 (YYYY-MM-DD)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+    const error = new Error(`잘못된 날짜 형식입니다: ${date}. YYYY-MM-DD 형식이어야 합니다.`);
+    debugError('AVAILABILITY', 'toggleAvailability - 날짜 형식 오류', error);
+    throw error;
+  }
+  
+  debugLog('AVAILABILITY', 'toggleAvailability 시작', { calendarId, date: normalizedDate });
 
   return measurePerformance('toggleAvailability', async () => {
     try {
@@ -28,21 +39,24 @@ export async function toggleAvailability(
       const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
       
       // 기존 가용성 데이터 찾기 (날짜로만 검색 - 사용자 구분 없음)
+      // 정규화된 날짜로 검색하여 사용자가 클릭한 날짜와 정확히 일치하도록 보장
       const q = query(
         availabilityRef,
-        where('date', '==', date)
+        where('date', '==', normalizedDate)
       );
 
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
         // 새로 생성 (불가일로 설정) - 모든 사용자에게 적용
+        // 정규화된 날짜를 저장하여 사용자가 클릭한 날짜와 정확히 일치하도록 보장
         debugLog('AVAILABILITY', '새 가용성 데이터 생성 - Firestore에 저장 (모든 사용자에게 적용)', { 
           calendarId, 
-          date,
+          date: normalizedDate,
+          originalDate: date,
         });
         const newAvailability = {
-          date,
+          date: normalizedDate, // 정규화된 날짜 저장
           isUnavailable: true,
           createdAt: new Date(),
         };
@@ -51,13 +65,14 @@ export async function toggleAvailability(
         debugLog('AVAILABILITY', 'Firestore 저장 완료 - 새 문서 생성됨', { 
           id: docRef.id,
           calendarId,
-          date,
+          date: normalizedDate,
+          originalDate: date,
         });
 
         return {
           id: docRef.id,
           calendarId,
-          ...newAvailability,
+          ...newAvailability, // newAvailability에 이미 date가 포함되어 있음
         };
       } else {
         // 기존 데이터 토글 (날짜별로 하나만 존재)
@@ -70,7 +85,8 @@ export async function toggleAvailability(
           currentStatus,
           newStatus,
           calendarId,
-          date,
+          date: normalizedDate,
+          originalDate: date,
         });
 
         await updateDoc(doc(availabilityRef, availabilityDoc.id), {

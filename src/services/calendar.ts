@@ -446,8 +446,32 @@ export async function deleteCalendar(calendarId: string): Promise<void> {
         throw error;
       }
 
-      await deleteDoc(doc(db, 'calendars', calendarId));
-      debugLog('CALENDAR', 'deleteCalendar 완료', { calendarId });
+      // 달력 삭제 전에 관련된 availability 서브컬렉션도 삭제
+      debugLog('CALENDAR', 'availability 서브컬렉션 삭제 시작', { calendarId });
+      try {
+        const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
+        const availabilitySnapshot = await getDocs(availabilityRef);
+        
+        const deletePromises = availabilitySnapshot.docs.map((doc) => 
+          deleteDoc(doc.ref)
+        );
+        
+        await Promise.all(deletePromises);
+        debugLog('CALENDAR', 'availability 서브컬렉션 삭제 완료', { 
+          calendarId, 
+          deletedCount: availabilitySnapshot.size 
+        });
+      } catch (availabilityError) {
+        debugError('CALENDAR', 'availability 서브컬렉션 삭제 실패', availabilityError);
+        // availability 삭제 실패해도 달력 삭제는 계속 진행
+        console.warn('availability 서브컬렉션 삭제 실패했지만 달력 삭제는 계속 진행합니다:', availabilityError);
+      }
+
+      // 달력 문서 삭제
+      const calendarDocRef = doc(db, 'calendars', calendarId);
+      await deleteDoc(calendarDocRef);
+      
+      debugLog('CALENDAR', 'deleteCalendar 완료 - Firestore에서 문서 삭제됨', { calendarId });
     } catch (error) {
       debugError('CALENDAR', 'deleteCalendar 실패', error);
       throw error;

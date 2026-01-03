@@ -65,7 +65,7 @@ function App() {
           <main className="main">
             <AppRoutes />
           </main>
-        </div>
+      </div>
       </BrowserRouter>
     </AuthProvider>
   );

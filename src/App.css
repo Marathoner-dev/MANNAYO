@@ -38,21 +38,21 @@ body {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  }
+}
 
 .btn-primary {
   background-color: #2563eb;
   color: white;
-  }
+}
 
 .btn-primary:hover:not(:disabled) {
   background-color: #1d4ed8;
-}
+  }
 
 .btn-secondary {
   background-color: #10b981;
   color: white;
-}
+  }
 
 .btn-secondary:hover:not(:disabled) {
   background-color: #059669;

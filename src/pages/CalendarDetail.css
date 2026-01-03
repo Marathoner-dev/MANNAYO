@@ -38,6 +38,7 @@
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .code-badge,
@@ -53,6 +54,12 @@
 .confirmed-badge {
   background-color: #d1fae5;
   color: #065f46;
+}
+
+.confirmed-date-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .calendar-controls {

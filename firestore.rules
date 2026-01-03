@@ -10,8 +10,14 @@ service cloud.firestore {
     match /calendars/{calendarId} {
       allow read: if true; // 모든 사용자가 읽기 가능
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && 
+      
+      // update와 delete를 분리하여 처리
+      allow update: if request.auth != null && 
         request.resource.data.createdBy == request.auth.uid;
+      
+      // delete는 기존 문서의 createdBy를 확인
+      allow delete: if request.auth != null && 
+        resource.data.createdBy == request.auth.uid;
       
       // 가용성 데이터 (서브컬렉션) - 모든 사용자가 읽기/쓰기 가능
       match /availability/{availabilityId} {
@@ -20,4 +26,3 @@ service cloud.firestore {
     }
   }
 }
-
