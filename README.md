@@ -1,4 +1,4 @@
-# ShareCalendar (공유 달력)
+# Mannayo.app (htttps://mannayo.app)
 
 여러 사용자가 공동으로 약속 가능일을 조율할 수 있는 공유 달력 서비스입니다.
 
