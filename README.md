@@ -1,4 +1,4 @@
-# 만나요 (MANNAYO)
+# [만나요 (MANNAYO](https://mannayo.app)
 
 > Copy, Paste, Share, 쉽고 빠르게 표시하는 서로의 일정
 
