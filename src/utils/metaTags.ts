@@ -169,8 +169,8 @@ export function resetMetaTags() {
     description: defaultDescription,
     ogTitle: defaultTitle,
     ogDescription: defaultDescription,
-    ogImage: `${window.location.origin}/calendar-preview.jpg`,
-    ogUrl: window.location.origin,
+    ogImage: `${window.location.origin}/calendar-preview.png`,
+    ogUrl: window.location.href,
   });
 }
 

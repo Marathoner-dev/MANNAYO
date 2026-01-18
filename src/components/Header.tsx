@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { logout } from '../services/auth';
+import { debugError } from '../utils/debug';
 import './Header.css';
 
 export function Header() {
@@ -10,7 +11,7 @@ export function Header() {
     try {
       await logout();
     } catch (error) {
-      console.error('로그아웃 실패:', error);
+      debugError('HEADER', '로그아웃 실패', error);
       alert('로그아웃에 실패했습니다.');
     }
   };
@@ -26,9 +27,11 @@ export function Header() {
   return (
     <header className="header">
       <div className="container">
-        <Link to="/" className="logo">
-        MANNAYO
-        </Link>
+        <div className="logo-container">
+          <Link to="/" className="logo">
+            MANNAYO
+          </Link>
+        </div>
         <nav className="nav">
           {currentUser ? (
             <>

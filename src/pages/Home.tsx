@@ -105,14 +105,18 @@ export function Home() {
                       <span className="info-label">코드:</span>
                       <span className="info-value code-value">{calendar.code}</span>
                     </div>
-                    <div className="info-item">
-                      <span className="info-label">생성일:</span>
-                      <span className="info-value">{formatDate(calendar.createdAt)}</span>
+                    <div className="info-item confirmed">
+                      <span className="info-label">확정일:</span>
+                      <span className={`info-value ${!calendar.confirmedDate ? 'undecided' : ''}`}>
+                        {calendar.confirmedDate || '미정'}
+                      </span>
                     </div>
-                      <div className="info-item confirmed">
-                        <span className="info-label">확정일:</span>
-                        <span className="info-value">{calendar.confirmedDate}</span>
-                      </div>
+                    <div className="info-item confirmed">
+                      <span className="info-label">장소:</span>
+                      <span className={`info-value ${!calendar.confirmedLocation ? 'undecided' : ''}`}>
+                        {calendar.confirmedLocation || '미정'}
+                      </span>
+                    </div>
                   </div>
                   <div className="calendar-card-actions">
                     <Link

@@ -1,23 +1,23 @@
 .calendar-detail-page {
   min-height: calc(100vh - 80px);
   padding: 2rem;
-  background-color: #f5f5f5;
-  color: #1f2937;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
 }
 
 .calendar-detail-container {
   max-width: 1200px;
   margin: 0 auto;
-  background: white;
+  background: var(--bg-container);
   padding: 2rem;
   border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-default);
 }
 
 .calendar-header {
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border-default);
 }
 
 .calendar-header-top {
@@ -29,9 +29,15 @@
 
 .calendar-header h1 {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 2rem;
   flex: 1;
+}
+
+.calendar-header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .calendar-info {
@@ -44,16 +50,21 @@
 .code-badge,
 .confirmed-badge {
   padding: 0.5rem 1rem;
-  background-color: #f3f4f6;
+  background-color: var(--bg-badge);
   border-radius: 0.375rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .confirmed-badge {
-  background-color: #d1fae5;
-  color: #065f46;
+  background-color: var(--bg-confirmed-badge);
+  color: var(--text-confirmed-badge);
+}
+
+.confirmed-badge.undecided {
+  color: #9ca3af;
+  opacity: 0.7;
 }
 
 .confirmed-date-info {
@@ -67,11 +78,13 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
 }
 
 .calendar-controls h2 {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 1.5rem;
 }
 
@@ -79,7 +92,7 @@
 .weekday {
   text-align: center;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--text-secondary);
   padding: 0.5rem;
   font-size: 0.875rem;
   min-height: 2rem;
@@ -105,10 +118,10 @@
   .weekday-header {
     text-align: center;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--text-secondary);
     padding: 0.75rem;
     font-size: 0.875rem;
-    background-color: #f9fafb;
+    background-color: var(--bg-weekday-header);
     border-radius: 0.375rem;
     margin-bottom: 0.5rem;
     position: sticky;
@@ -125,13 +138,13 @@
 .calendar-day {
   aspect-ratio: 1;
   min-height: 10px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border-default);
   border-radius: 0.375rem;
   padding: 0.5rem;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
   position: relative;
-  background-color: #ffffff;
+  background-color: var(--bg-day);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -140,8 +153,8 @@
 }
 
 .calendar-day:hover:not(.empty) {
-  border-color: #2563eb;
-  background-color: #eff6ff;
+  border-color: var(--border-today);
+  background-color: var(--bg-day-hover);
 }
 
 .calendar-day.empty {
@@ -151,50 +164,50 @@
 }
 
 .calendar-day.unavailable {
-  background-color: #fee2e2;
-  border-color: #dc2626;
+  background-color: var(--bg-unavailable);
+  border-color: var(--border-unavailable);
 }
 
 .calendar-day.unavailable:hover {
-  background-color: #fecaca;
+  background-color: var(--bg-unavailable-hover);
 }
 
 .calendar-day.confirmed {
-  background-color: #d1fae5;
-  border-color: #059669;
+  background-color: var(--bg-confirmed);
+  border-color: var(--border-confirmed);
   font-weight: 600;
 }
 
 .calendar-day.today {
-  border-color: #2563eb;
+  border-color: var(--border-today);
   border-width: 3px;
 }
 
 .calendar-day.long-pressing {
-  background-color: #dbeafe;
-  border-color: #2563eb;
+  background-color: var(--bg-long-pressing);
+  border-color: var(--border-today);
   border-width: 3px;
 }
 
 .day-number {
   font-size: 1rem;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .calendar-day.unavailable .day-number {
-  color: #dc2626;
+  color: var(--text-unavailable);
 }
 
 .calendar-day.confirmed .day-number {
-  color: #059669;
+  color: var(--text-confirmed);
 }
 
 .confirmed-indicator {
   position: absolute;
   top: 0.25rem;
   right: 0.25rem;
-  color: #059669;
+  color: var(--text-confirmed);
   font-weight: bold;
   font-size: 1rem;
 }
@@ -205,8 +218,9 @@
   justify-content: center;
   margin-bottom: 2rem;
   padding: 1rem;
-  background-color: #f9fafb;
+  background-color: var(--bg-legend);
   border-radius: 0.375rem;
+  color: var(--text-primary);
 }
 
 .legend-item {
@@ -219,33 +233,33 @@
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.25rem;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border-default);
 }
 
 .legend-color.available {
-  background-color: #ffffff;
+  background-color: var(--bg-day);
 }
 
 .legend-color.unavailable {
-  background-color: #fee2e2;
-  border-color: #dc2626;
+  background-color: var(--bg-unavailable);
+  border-color: var(--border-unavailable);
 }
 
 .legend-color.confirmed {
-  background-color: #d1fae5;
-  border-color: #059669;
+  background-color: var(--bg-confirmed);
+  border-color: var(--border-confirmed);
 }
 
 .confirm-date-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background-color: #f9fafb;
+  background-color: var(--bg-section);
   border-radius: 0.375rem;
 }
 
 .confirm-date-section h3 {
   margin: 0 0 1rem 0;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 1.25rem;
 }
 
@@ -255,18 +269,54 @@
   align-items: center;
 }
 
-.date-input {
+.date-input,
+.location-input {
   padding: 0.75rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-input);
   border-radius: 0.375rem;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
+  height: 2.75rem;
+  box-sizing: border-box;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
 }
 
-.date-input:focus {
+.confirm-date-controls .btn {
+  height: 2.75rem;
+  box-sizing: border-box;
+}
+
+.date-input:focus,
+.location-input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-focus);
+  background-color: var(--bg-input);
+}
+
+.date-input::placeholder,
+.location-input::placeholder {
+  color: var(--text-muted);
+}
+
+.location-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.location-input-readonly {
+  cursor: pointer;
+  background-color: var(--bg-input-readonly);
+}
+
+.location-input-readonly:hover {
+  background-color: var(--bg-section);
+  border-color: var(--border-input-focus);
+}
+
+.location-input-readonly:focus {
+  background-color: var(--bg-input);
 }
 
 .calendar-actions {
@@ -280,7 +330,7 @@
 .loading {
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   min-height: 200px;
   display: flex;
   flex-direction: column;
@@ -289,11 +339,11 @@
 }
 
 .error-message {
-  color: #dc2626;
+  color: var(--text-error);
   font-size: 1rem;
   padding: 2rem;
-  background-color: #fee2e2;
-  border: 2px solid #dc2626;
+  background-color: var(--bg-error);
+  border: 2px solid var(--border-unavailable);
   border-radius: 0.5rem;
   margin-bottom: 1.5rem;
   text-align: center;
@@ -301,7 +351,7 @@
 
 .error-message h2 {
   margin: 0 0 1rem 0;
-  color: #dc2626;
+  color: var(--text-error);
   font-size: 1.5rem;
 }
 
@@ -332,6 +382,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  height: 2.5rem;
 }
 
 .btn-share:hover {
@@ -349,6 +400,21 @@
 .btn-share span:not(.share-icon) {
   font-size: 0.875rem;
 }
+.btn-create-calendar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 2.5rem;
+}
 
 @media (max-width: 768px) {
   .calendar-detail-page {
@@ -359,9 +425,35 @@
     padding: 1rem;
   }
 
-  .calendar-controls {
+  .calendar-header-top {
     flex-direction: column;
+    align-items: flex-start;
     gap: 1rem;
+  }
+
+  .calendar-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .calendar-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .calendar-controls {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+  }
+
+  .calendar-controls h2 {
+    font-size: 1.25rem;
+    white-space: nowrap;
+  }
+
+  .calendar-controls .btn {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    white-space: nowrap;
   }
 
   .calendar-legend {
@@ -374,6 +466,7 @@
   }
 
   .date-input,
+  .location-input,
   .confirm-date-controls .btn {
     width: 100%;
   }

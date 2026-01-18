@@ -12,9 +12,13 @@ export interface Calendar {
   usePassword: boolean;
   password: string | null;
   confirmedDate: string | null;
+  confirmedLocation: string | null;
   createdBy: string;
   participants: string[];
   createdAt: Date;
+  // locations 컬렉션에 저장된 지오코딩된 좌표 (optional)
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface Availability {

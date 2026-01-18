@@ -1,9 +1,9 @@
 /* Header Styles */
 .header {
-  background-color: #fff;
-  border-bottom: 1px solid #e0e0e0;
+  background-color: var(--bg-container);
+  border-bottom: 1px solid var(--border-default);
   padding: 1rem 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-default);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -18,16 +18,22 @@
   align-items: center;
 }
 
+.header .logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .header .logo {
   font-size: 1.5rem;
   font-weight: bold;
-  color: black;
+  color: var(--text-primary);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .header .logo:hover {
-  color: #1d4ed8;
+  color: var(--border-input-focus);
 }
 
 .header .nav {
@@ -37,7 +43,7 @@
 }
 
 .header .user-name {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -61,8 +67,8 @@
 }
 
 .header .btn-primary {
-  background-color: black;
-  color: white;
+  background-color: var(--border-input-focus);
+  color: var(--text-inverse);
 }
 
 .header .btn-primary:hover:not(:disabled) {
@@ -71,12 +77,12 @@
 
 .header .btn-outline {
   background-color: transparent;
-  color: black;
-  border: 1px solid black;
+  color: var(--text-primary);
+  border: 1px solid var(--border-input-focus);
 }
 
 .header .btn-outline:hover:not(:disabled) {
-  background-color: #eff6ff;
+  background-color: var(--bg-day-hover);
 }
 
 /* Responsive Design */
@@ -102,4 +108,3 @@
     font-size: 0.8rem;
   }
 }
-

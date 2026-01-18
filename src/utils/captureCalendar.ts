@@ -6,6 +6,7 @@
  */
 
 import { toPng } from 'html-to-image';
+import { debugError } from './debug';
 
 export interface CaptureOptions {
   /** 이미지 너비 (픽셀) */
@@ -69,7 +70,7 @@ export async function captureCalendarImage(
 
     return dataUrl;
   } catch (error) {
-    console.error('달력 이미지 캡처 실패:', error);
+    debugError('CAPTURE_CALENDAR', '달력 이미지 캡처 실패', error);
     throw new Error('이미지 캡처에 실패했습니다.');
   }
 }

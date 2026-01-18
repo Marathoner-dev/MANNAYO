@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { joinCalendar, findCalendarByCode } from '../services/calendar';
 import { useAuth } from '../contexts/AuthContext';
+import { debugError } from '../utils/debug';
 import './JoinCalendar.css';
 
 export function JoinCalendar() {
@@ -66,7 +67,7 @@ export function JoinCalendar() {
       // 참여 성공 시 달력 상세 페이지로 이동
       navigate(`/calendar/${calendar.code}`);
     } catch (err: any) {
-      console.error('달력 참여 실패:', err);
+      debugError('JOIN_CALENDAR', '달력 참여 실패', err);
       setError(err.message || '달력 참여에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);

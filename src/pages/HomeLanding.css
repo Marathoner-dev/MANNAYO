@@ -7,6 +7,7 @@
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  background-color: var(--bg-page);
 }
 
 /* 배경 이미지 */
@@ -17,7 +18,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: url('/public/calendar-preview.png'); /* 실제 공유달력 사용 이미지 경로 */
+  background-image: url('/calendar-preview.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -38,12 +39,18 @@
   z-index: 1;
 }
 
+@media (prefers-color-scheme: dark) {
+  .home-landing::after {
+    background-color: rgba(0, 0, 0, 0.7);
+  }
+}
+
 /* 컨텐츠 컨테이너 */
 .home-landing-content {
   position: relative;
   z-index: 2;
   text-align: center;
-  color: white;
+  color: var(--text-inverse);
   padding: 2rem;
 }
 
@@ -52,16 +59,16 @@
   font-size: 4rem;
   font-weight: bold;
   margin-bottom: 2rem;
-  color: white;
+  color: var(--text-inverse);
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
   letter-spacing: 0.1em;
 }
 
 /* 로그인 버튼 */
 .home-landing-login-btn {
-  background-color: white;
-  color: black;
-  border: 2px solid white;
+  background-color: var(--text-inverse);
+  color: var(--bg-page);
+  border: 2px solid var(--text-inverse);
   border-radius: 0.5rem;
   padding: 1rem 2.5rem;
   font-size: 1.125rem;
@@ -104,10 +111,4 @@
   .home-landing-logo {
     font-size: 2rem;
   }
-
-  .home-landing-login-btn {
-    padding: 0.75rem 1.5rem;
-    font-size: 0.9rem;
-  }
 }
-

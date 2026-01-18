@@ -8,6 +8,19 @@ import { JoinCalendar } from './pages/JoinCalendar';
 import { CalendarDetail } from './pages/CalendarDetail';
 import './App.css';
 
+// 개발 모드에서 더미 데이터 생성 함수를 window 객체에 등록
+if (import.meta.env.DEV) {
+  import('./utils/dummyDats').then(() => {
+    console.log('💡 generateDummyLocations() 함수가 준비되었습니다!');
+  });
+  
+  // 개발 모드에서 더미 데이터 삭제 함수를 window 객체에 등록
+  import('./utils/deleteDummyData').then(() => {
+    console.log('💡 deleteDummyLocations() 함수가 준비되었습니다!');
+    console.log('💡 콘솔에서 deleteDummyLocations()를 실행하여 더미 데이터를 삭제할 수 있습니다.');
+  });
+}
+
 // Protected Route 컴포넌트
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();

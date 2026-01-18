@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { updateUserName } from '../services/auth';
+import { debugError } from '../utils/debug';
 import './NameInputModal.css';
 
 interface NameInputModalProps {
@@ -42,7 +43,7 @@ export function NameInputModal({ isOpen, currentName, onClose, onNameSet }: Name
       onNameSet();
       onClose();
     } catch (err: any) {
-      console.error('이름 업데이트 실패:', err);
+      debugError('NAME_INPUT', '이름 업데이트 실패', err);
       setError('이름 설정에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);

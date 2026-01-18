@@ -214,7 +214,6 @@ export function subscribeAvailability(
     (error) => {
       debugError('AVAILABILITY', '가용성 데이터 변경 감지 에러', error);
       // 에러가 발생해도 연결 유지 (재연결 시도)
-      console.error('가용성 데이터 변경 감지 에러:', error);
     }
   );
 

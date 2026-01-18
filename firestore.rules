@@ -6,23 +6,38 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // 달력 데이터 (모든 사용자가 읽기 가능, 생성자만 쓰기)
+    // 달력 데이터 (기존 컬렉션, 민감한 정보 포함)
     match /calendars/{calendarId} {
-      allow read: if true; // 모든 사용자가 읽기 가능
+      // 인증된 사용자가 참여자인 경우: 전체 문서 읽기 가능
+      allow read: if request.auth != null && 
+                     request.auth.uid in resource.data.participants;
+      
+      // 생성자만 생성 가능
       allow create: if request.auth != null;
       
       // update와 delete를 분리하여 처리
+      // update는 기존 문서의 createdBy를 확인 (부분 업데이트 지원)
+      // request.resource.data.createdBy가 없을 수 있으므로 resource.data.createdBy를 확인
       allow update: if request.auth != null && 
-        request.resource.data.createdBy == request.auth.uid;
+                       resource.data.createdBy == request.auth.uid;
       
       // delete는 기존 문서의 createdBy를 확인
       allow delete: if request.auth != null && 
-        resource.data.createdBy == request.auth.uid;
+                       resource.data.createdBy == request.auth.uid;
       
       // 가용성 데이터 (서브컬렉션) - 모든 사용자가 읽기/쓰기 가능
       match /availability/{availabilityId} {
         allow read, write: if true;
       }
+    }
+    
+    // 확정된 장소 정보 컬렉션 (민감한 정보 제외, 완전 공개)
+    match /locations/{locationId} {
+      // 모든 사용자가 읽기 가능 (인증 불필요)
+      allow read: if true;
+      
+      // 생성/수정/삭제는 인증된 사용자만 (setConfirmedDate 함수에서만 사용)
+      allow create, update, delete: if request.auth != null;
     }
   }
 }

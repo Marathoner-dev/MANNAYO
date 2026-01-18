@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Calendar, Availability } from '../types';
 import { debugLog, debugError } from '../utils/debug';
 import { PasswordModal } from '../components/PasswordModal';
+import { AddressSearchModal } from '../components/AddressSearchModal';
 import { setMetaTags, resetMetaTags } from '../utils/metaTags';
 import { captureCalendarImage } from '../utils/captureCalendar';
 import './CalendarDetail.css';
@@ -40,13 +41,16 @@ export function CalendarDetail() {
   const [error, setError] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [longPressDate, setLongPressDate] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const calendarContainerRef = useRef<HTMLDivElement>(null);
+  const confirmDateInProgressRef = useRef(false); // 확정 처리 중복 실행 방지
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -109,6 +113,8 @@ export function CalendarDetail() {
           code: calendarData.code,
           title: calendarData.title,
           usePassword: calendarData.usePassword,
+          confirmedDate: calendarData.confirmedDate,
+          confirmedLocation: calendarData.confirmedLocation,
         });
 
         // ========== 공유 미리보기 메타 태그 설정 ==========
@@ -316,8 +322,7 @@ export function CalendarDetail() {
       // console.log(`날짜 ${date}가 ${updatedAvailability.isUnavailable ? '불가능' : '가능'}으로 설정되었습니다.`);
       
     } catch (err: any) {
-      debugError('CALENDAR_DETAIL', 'Firestore 저장 실패', err);
-      console.error('Firestore 저장 에러 상세:', {
+      debugError('CALENDAR_DETAIL', 'Firestore 저장 실패', {
         error: err,
         code: err.code,
         message: err.message,
@@ -336,9 +341,12 @@ export function CalendarDetail() {
     setLongPressDate(date);
 
     const timer = setTimeout(() => {
-      handleConfirmDateDirect(date);
+      // 길게 누르면 날짜를 선택하고 장소 선택 모달 열기
+      setSelectedDate(date);
+      setShowAddressModal(true);
       setLongPressDate(null);
-    }, 500); // 500ms 이상 누르면 확정일 설정
+      debugLog('CALENDAR_DETAIL', '길게 누르기 완료 - 장소 선택 모달 열기', { date });
+    }, 500); // 500ms 이상 누르면 장소 선택 모달 열기
 
     setLongPressTimer(timer);
   };
@@ -351,50 +359,113 @@ export function CalendarDetail() {
     setLongPressDate(null);
   };
 
-  const handleConfirmDateDirect = async (date: string) => {
-    if (!calendar) return;
-
-    try {
-      debugLog('CALENDAR_DETAIL', '길게 누르기로 확정일 설정', { calendarId: calendar.id, date });
-      await setConfirmedDate(calendar.id, date);
-      setCalendar({ ...calendar, confirmedDate: date });
-      alert('약속 확정일이 설정되었습니다.');
-    } catch (err: any) {
-      debugError('CALENDAR_DETAIL', '확정일 설정 실패', err);
-      alert(err.message || '확정일 설정에 실패했습니다.');
-    }
-  };
-
-  const handleConfirmDate = async () => {
+  const handleConfirmDate = async (locationOverride?: string) => {
     if (!calendar || !selectedDate) return;
 
+    // 중복 실행 방지
+    if (confirmDateInProgressRef.current) {
+      debugLog('CALENDAR_DETAIL', '확정일 설정 중복 실행 방지', { 
+        calendarId: calendar.id,
+        date: selectedDate 
+      });
+      return;
+    }
+
+    // locationOverride가 있으면 사용, 없으면 selectedLocation 사용
+    const location = locationOverride ? locationOverride.trim() : selectedLocation.trim();
+    if (!location) {
+      alert('날짜와 장소를 모두 입력해주세요.');
+      return;
+    }
+
+    // 진행 중 플래그 설정
+    confirmDateInProgressRef.current = true;
+
     try {
-      debugLog('CALENDAR_DETAIL', '확정일 설정', { calendarId: calendar.id, date: selectedDate });
-      await setConfirmedDate(calendar.id, selectedDate);
-      setCalendar({ ...calendar, confirmedDate: selectedDate });
+      debugLog('CALENDAR_DETAIL', '확정일 설정', { 
+        calendarId: calendar.id, 
+        date: selectedDate, 
+        location,
+        previousDate: calendar.confirmedDate,
+        previousLocation: calendar.confirmedLocation,
+        locationOverride: !!locationOverride
+      });
+      
+      // 데이터베이스에 저장
+      await setConfirmedDate(calendar.id, selectedDate, location);
+      
+      // 로컬 상태 업데이트 (확정일과 장소 모두 반영)
+      // 새로운 객체를 생성하여 React가 변경을 감지하도록 함
+      const updatedCalendar = {
+        ...calendar,
+        confirmedDate: selectedDate,
+        confirmedLocation: location
+      };
+      setCalendar(updatedCalendar);
+      
+      // 입력 필드 초기화
       setSelectedDate(null);
-      alert('약속 확정일이 설정되었습니다.');
+      setSelectedLocation('');
+      
+      debugLog('CALENDAR_DETAIL', '확정일 설정 완료 - 상태 업데이트됨', {
+        newDate: selectedDate,
+        newLocation: location,
+        calendarUpdated: updatedCalendar.confirmedDate === selectedDate && updatedCalendar.confirmedLocation === location
+      });
+      
+      alert('약속 확정일과 장소가 설정되었습니다.');
     } catch (err: any) {
       debugError('CALENDAR_DETAIL', '확정일 설정 실패', err);
       alert(err.message || '확정일 설정에 실패했습니다.');
+    } finally {
+      // 진행 중 플래그 해제
+      confirmDateInProgressRef.current = false;
     }
   };
 
   const handleCancelConfirmedDate = async () => {
     if (!calendar) return;
 
-    if (!confirm('확정일을 취소하시겠습니까?')) {
+    if (!confirm('확정일과 장소를 취소하시겠습니까?')) {
       return;
     }
 
     try {
       debugLog('CALENDAR_DETAIL', '확정일 취소', { calendarId: calendar.id });
-      await setConfirmedDate(calendar.id, null);
-      setCalendar({ ...calendar, confirmedDate: null });
-      alert('확정일이 취소되었습니다.');
+      await setConfirmedDate(calendar.id, null, null);
+      // 새로운 객체를 생성하여 React가 변경을 감지하도록 함
+      const updatedCalendar = {
+        ...calendar,
+        confirmedDate: null,
+        confirmedLocation: null
+      };
+      setCalendar(updatedCalendar);
+      alert('확정일과 장소가 취소되었습니다.');
     } catch (err: any) {
       debugError('CALENDAR_DETAIL', '확정일 취소 실패', err);
       alert(err.message || '확정일 취소에 실패했습니다.');
+    }
+  };
+
+  const handleSearchAddress = () => {
+    setShowAddressModal(true);
+  };
+
+  const handleSelectAddress = (address: string) => {
+    setSelectedLocation(address);
+    debugLog('CALENDAR_DETAIL', '주소 검색 완료', { address, hasSelectedDate: !!selectedDate });
+    
+    // 길게 누르기로 날짜가 이미 선택된 경우 자동으로 확정 처리
+    // 중복 실행 방지를 위해 confirmDateInProgressRef 체크
+    if (selectedDate && address.trim() && !confirmDateInProgressRef.current) {
+      // 모달이 닫힌 후 확정 처리를 위해 약간의 지연
+      // locationOverride를 사용하여 상태 업데이트 타이밍 문제 해결
+      setTimeout(() => {
+        // setTimeout 내부에서도 다시 체크
+        if (!confirmDateInProgressRef.current) {
+          handleConfirmDate(address);
+        }
+      }, 100);
     }
   };
 
@@ -566,16 +637,17 @@ export function CalendarDetail() {
   const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
   const daysByWeekday: { [key: number]: number[] } = {};
   
-  // 각 요일별로 날짜 분류
-  weekDays.forEach((_, weekdayIndex) => {
-    daysByWeekday[weekdayIndex] = [];
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      if (date.getDay() === weekdayIndex) {
-        daysByWeekday[weekdayIndex].push(day);
-      }
-    }
-  });
+  // 각 요일별 배열 초기화
+  for (let i = 0; i < 7; i++) {
+    daysByWeekday[i] = [];
+  }
+  
+  // 요일별 날짜  분류
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const weekdayIndex = date.getDay();
+    daysByWeekday[weekdayIndex].push(day);
+  }
 
   // 각 날짜의 주차(week) 계산 함수
   const getWeekOfMonth = (day: number): number => {
@@ -609,40 +681,57 @@ export function CalendarDetail() {
         <div className="calendar-header">
           <div className="calendar-header-top">
             <h1>{calendar.title}</h1>
-            <button
-              onClick={handleShare}
-              className="btn btn-share"
-              title="링크 복사"
-            >
-              {shareCopied ? (
-                <>
-                  <span className="share-icon">✓</span>
-                  <span>복사됨!</span>
-                </>
-              ) : (
-                <>
-                  <span className="share-icon">🔗</span>
-                  <span>공유</span>
-                </>
-              )}
-            </button>
+            <div className="calendar-header-actions">
+              <button
+                onClick={handleShare}
+                className="btn btn-share"
+                title="링크 복사"
+              >
+                {shareCopied ? (
+                  <>
+                    <span className="share-icon">✓</span>
+                    <span>복사됨!</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="share-icon">🔗</span>
+                    <span>공유</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  if (currentUser) {
+                    navigate('/calendar/create');
+                  } else {
+                    navigate('/login?redirect=/calendar/create');
+                  }
+                }}
+                className="btn btn-primary btn-create-calendar"
+              >
+                새 달력 만들기
+              </button>
+            </div>
           </div>
           <div className="calendar-info">
             <span className="code-badge">코드: {calendar.code}</span>
-            {calendar.confirmedDate && (
-              <div className="confirmed-date-info">
-                <span className="confirmed-badge">확정일: {calendar.confirmedDate}</span>
-                {currentUser && calendar.createdBy === currentUser.uid && (
-                  <button
-                    onClick={handleCancelConfirmedDate}
-                    className="btn btn-outline btn-small"
-                    style={{ marginLeft: '0.5rem' }}
-                  >
-                    확정 취소
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="confirmed-date-info">
+              <span className={`confirmed-badge ${!calendar.confirmedDate ? 'undecided' : ''}`}>
+                확정일: {calendar.confirmedDate || '미정'}
+              </span>
+              <span className={`confirmed-badge ${!calendar.confirmedLocation ? 'undecided' : ''}`}>
+                장소: {calendar.confirmedLocation || '미정'}
+              </span>
+              {currentUser && calendar.createdBy === currentUser.uid && (calendar.confirmedDate || calendar.confirmedLocation) && (
+                <button
+                  onClick={handleCancelConfirmedDate}
+                  className="btn btn-outline btn-small"
+                  style={{ marginLeft: '0.5rem' }}
+                >
+                  확정 취소
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -709,49 +798,45 @@ export function CalendarDetail() {
           </div>
           <div className="legend-item">
             <div className="legend-color unavailable"></div>
-            <span>불가능 (클릭하여 변경)</span>
+            <span>불가능 (클릭하기)</span>
           </div>
           <div className="legend-item">
             <div className="legend-color confirmed"></div>
-            <span>확정일</span>
+            <span>확정일 (길게누르기)</span>
           </div>
         </div>
 
         {currentUser && calendar.createdBy === currentUser.uid && (
           <div className="confirm-date-section">
-            <h3>약속 확정일 설정</h3>
+            <h3>약속 확정일 및 장소 설정</h3>
             <div className="confirm-date-controls">
               <input
                 type="date"
                 value={selectedDate || ''}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="date-input"
+                placeholder="날짜 선택"
+              />
+              <input
+                type="text"
+                value={selectedLocation}
+                readOnly
+                onClick={handleSearchAddress}
+                className="location-input location-input-readonly"
+                placeholder="주소 검색을 통해 입력해주세요 *"
               />
               <button
-                onClick={handleConfirmDate}
-                disabled={!selectedDate}
+                onClick={() => handleConfirmDate()}
+                disabled={!selectedDate || !selectedLocation.trim()}
                 className="btn btn-primary"
               >
-                확정일 설정
+                확정하기
               </button>
             </div>
           </div>
         )}
 
         <div className="calendar-actions">
-          <button
-            onClick={() => {
-              if (currentUser) {
-                navigate('/calendar/create');
-              } else {
-                // 비로그인 시 로그인 페이지로 이동, 로그인 완료 후 생성 페이지로 리다이렉트
-                navigate('/login?redirect=/calendar/create');
-              }
-            }}
-            className="btn btn-primary"
-          >
-            새 달력 만들기
-          </button>
           {currentUser ? (
             <button onClick={() => navigate('/')} className="btn btn-outline">
               목록으로
@@ -773,6 +858,12 @@ export function CalendarDetail() {
         }}
         onPasswordCorrect={handlePasswordCorrect}
         error={passwordError}
+      />
+
+      <AddressSearchModal
+        isOpen={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+        onSelectAddress={handleSelectAddress}
       />
     </div>
   );

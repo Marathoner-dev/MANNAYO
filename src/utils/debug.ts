@@ -13,7 +13,7 @@ export function debugLog(tag: string, message: string, data?: any) {
 }
 
 /**
- * 디버그 에러 (개발 모드에서만 상세 출력)
+ * 디버그 에러 (개발 모드에서만 출력)
  */
 export function debugError(tag: string, message: string, error: any) {
   if (isDev) {
@@ -21,10 +21,8 @@ export function debugError(tag: string, message: string, error: any) {
     if (error instanceof Error) {
       console.error(`[${tag}] Stack:`, error.stack);
     }
-  } else {
-    // 프로덕션에서는 간단한 로그만
-    console.error(`[${tag}] ${message}`);
   }
+  // 프로덕션에서는 로그를 출력하지 않음
 }
 
 /**

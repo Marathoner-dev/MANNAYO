@@ -16,17 +16,34 @@
     <!-- Open Graph (Facebook, LinkedIn 등) -->
     <meta property="og:title" content="만나요 - Copy, Share, Click" />
     <meta property="og:description" content="클릭 만으로 약속 날짜를 조율할 수 있는 공유 달력 서비스" />
-    <meta property="og:image" content="/calendar-preview.jpg" />
+    <meta property="og:image" content="" id="og-image" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="" />
+    <meta property="og:url" content="" id="og-url" />
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="만나요 - Copy, Share, Click" />
     <meta name="twitter:description" content="여러 사용자가 공동으로 약속 가능일을 조율할 수 있는 공유 달력 서비스" />
-    <meta name="twitter:image" content="/calendar-preview.jpg" />
+    <meta name="twitter:image" content="" id="twitter-image" />
+    
+    <script>
+      // 인스타그램 크롤러를 위해 즉시 절대 URL로 업데이트
+      (function() {
+        var origin = window.location.origin;
+        var ogImage = document.getElementById('og-image');
+        var ogUrl = document.getElementById('og-url');
+        var twitterImage = document.getElementById('twitter-image');
+        
+        if (ogImage) ogImage.setAttribute('content', origin + '/calendar-preview.png');
+        if (ogUrl) ogUrl.setAttribute('content', origin + window.location.pathname);
+        if (twitterImage) twitterImage.setAttribute('content', origin + '/calendar-preview.png');
+      })();
+    </script>
+    
+    <!-- Daum 우편번호 서비스 -->
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   </head>
   <body>
     <div id="root"></div>
