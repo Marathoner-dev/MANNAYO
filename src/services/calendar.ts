@@ -17,6 +17,24 @@ import { auth } from './firebase';
 import type { Calendar } from '../types';
 import { debugLog, debugError, measurePerformance } from '../utils/debug';
 
+// Kakao Maps API 타입 정의
+declare global {
+  interface Window {
+    kakao?: {
+      maps: {
+        services: {
+          Geocoder: new () => {
+            addressSearch: (address: string, callback: (result: any[], status: string) => void) => void;
+          };
+          Status: {
+            OK: string;
+          };
+        };
+      };
+    };
+  }
+}
+
 /**
  * 랜덤 코드 생성 (6-8자 영문+숫자)
  */
@@ -377,9 +395,10 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
       return;
     }
 
-    const geocoder = new window.kakao.maps.services.Geocoder();
+    const kakao = window.kakao;
+    const geocoder = new kakao.maps.services.Geocoder();
     geocoder.addressSearch(address, (result: any[], status: string) => {
-      if (status === window.kakao.maps.services.Status.OK && result && result.length > 0) {
+      if (status === kakao.maps.services.Status.OK && result && result.length > 0) {
         const { y: lat, x: lng } = result[0];
         resolve({
           lat: parseFloat(lat),
@@ -584,9 +603,7 @@ export async function setConfirmedDate(
         });
         
         try {
-          // 삭제 전에 주소 가져오기 (집계 업데이트용)
           const locationDoc = await getDoc(locationRef);
-          const oldAddress = locationDoc.exists() ? locationDoc.data().confirmedLocation : null;
           
           if (locationDoc.exists()) {
             await deleteDoc(locationRef);

@@ -50,14 +50,6 @@ export function Home() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(date);
-  };
-
   if (!currentUser) {
     return (
       <div className="home-landing">
