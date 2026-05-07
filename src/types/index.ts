@@ -25,7 +25,17 @@ export interface Availability {
   id: string;
   calendarId: string;
   date: string; // YYYY-MM-DD
+  profileId: string;
   isUnavailable: boolean;
+  createdAt: Date;
+}
+
+export interface Profile {
+  id: string;
+  calendarId: string;
+  name: string;
+  color: string;
+  password: string | null;
   createdAt: Date;
 }
 

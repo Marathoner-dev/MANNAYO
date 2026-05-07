@@ -40,6 +40,52 @@
   align-items: center;
 }
 
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem 0.375rem 0.375rem;
+  background: var(--bg-badge, #f3f4f6);
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  font: inherit;
+}
+
+.profile-chip:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.profile-chip-locked {
+  cursor: default;
+  opacity: 0.95;
+}
+
+.profile-chip-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.profile-chip-name {
+  font-size: 0.875rem;
+  color: #ffffff;
+  font-weight: 500;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .calendar-info {
   display: flex;
   gap: 1rem;
@@ -71,6 +117,41 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.profile-user-list {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background-color: var(--bg-legend);
+  border-radius: 0.375rem;
+}
+
+.profile-user-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.profile-user-swatch {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.profile-user-name {
+  font-weight: 500;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .calendar-controls {
@@ -86,6 +167,31 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 1.5rem;
+}
+
+/* 우측 월 네비게이션 — today + 다음 달 세그먼트 */
+.calendar-nav-segment {
+  display: inline-flex;
+}
+
+.calendar-nav-segment .btn-segment {
+  border-radius: 0;
+  text-transform: lowercase;
+}
+
+.calendar-nav-segment .btn-segment:first-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+}
+
+.calendar-nav-segment .btn-segment:last-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+}
+
+/* 인접한 세그먼트는 좌측 보더 제거해 한 줄로 보이게 */
+.calendar-nav-segment .btn-segment + .btn-segment {
+  border-left-width: 0;
 }
 
 
@@ -163,13 +269,22 @@
   cursor: default;
 }
 
-.calendar-day.unavailable {
-  background-color: var(--bg-unavailable);
-  border-color: var(--border-unavailable);
+.day-columns {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.85;
 }
 
-.calendar-day.unavailable:hover {
-  background-color: var(--bg-unavailable-hover);
+.day-column {
+  flex: 1 1 0;
+  min-width: 0;
+  transition: background-color 0.15s ease;
 }
 
 .calendar-day.confirmed {
@@ -178,29 +293,34 @@
   font-weight: 600;
 }
 
-.calendar-day.today {
-  border-color: var(--border-today);
-  border-width: 3px;
-}
-
 .calendar-day.long-pressing {
   background-color: var(--bg-long-pressing);
   border-color: var(--border-today);
   border-width: 3px;
 }
 
+.calendar-day.past {
+  filter: brightness(0.55) saturate(0.85);
+  cursor: default;
+  pointer-events: none;
+}
+
 .day-number {
   font-size: 1rem;
   font-weight: 500;
   color: var(--text-primary);
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.85);
 }
 
-.calendar-day.unavailable .day-number {
-  color: var(--text-unavailable);
+.calendar-day.has-unavailable .day-number {
+  color: var(--text-primary);
 }
 
 .calendar-day.confirmed .day-number {
   color: var(--text-confirmed);
+  text-shadow: none;
 }
 
 .confirmed-indicator {
@@ -210,17 +330,19 @@
   color: var(--text-confirmed);
   font-weight: bold;
   font-size: 1rem;
+  z-index: 2;
 }
 
 .calendar-legend {
   display: flex;
   gap: 2rem;
   justify-content: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   padding: 1rem;
   background-color: var(--bg-legend);
   border-radius: 0.375rem;
   color: var(--text-primary);
+  flex-wrap: wrap;
 }
 
 .legend-item {

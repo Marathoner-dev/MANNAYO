@@ -1,0 +1,361 @@
+/* ===== 모달 베이스 (Tailwind 톤 + 디자인 토큰 사용) ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(17, 24, 39, 0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: modalOverlayIn 0.18s ease-out;
+}
+
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: var(--bg-container);
+  padding: 1.75rem;
+  border-radius: 1rem;
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 26rem;
+  color: var(--text-primary);
+  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-content h2 {
+  margin: 0 0 0.375rem 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  justify-content: flex-end;
+}
+
+.modal-actions .btn {
+  min-width: 5.25rem;
+}
+
+.error-message {
+  color: var(--text-error);
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background-color: var(--bg-error);
+  border: 1px solid var(--bg-error);
+  border-radius: 0.5rem;
+  line-height: 1.4;
+}
+
+/* ===== Profile Select Modal ===== */
+.profile-select-modal {
+  max-width: 26rem;
+  position: relative;
+}
+
+.profile-modal-close {
+  position: absolute;
+  top: 0.875rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.4rem;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.profile-modal-close:hover {
+  color: var(--text-primary);
+  transform: scale(1.18) rotate(90deg);
+}
+
+.profile-modal-close:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+}
+
+.profile-select-modal .modal-description {
+  margin: 0 0 1.25rem 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.profile-select-modal .modal-description strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ===== 프로필 목록 ===== */
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 17.5rem;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.125rem;
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-container);
+  border: 1px solid var(--border-default);
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s, transform 0.05s, box-shadow 0.12s;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: var(--text-primary);
+}
+
+.profile-item:hover:not(:disabled) {
+  background: var(--bg-section);
+  border-color: var(--border-dark);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.profile-item:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.profile-item:focus-visible {
+  outline: none;
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.profile-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+.profile-name {
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 1;
+  text-align: left;
+  word-break: break-all;
+}
+
+.profile-lock {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.profile-item-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.375rem;
+}
+
+.profile-item-row .profile-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-delete-btn {
+  flex-shrink: 0;
+  width: 2.125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg-container);
+  border: 1px solid var(--border-default);
+  border-radius: 0.625rem;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s, transform 0.05s;
+}
+
+.profile-delete-btn:hover:not(:disabled) {
+  background: var(--bg-error, #fef2f2);
+  border-color: var(--text-error, #dc2626);
+  color: var(--text-error, #dc2626);
+}
+
+.profile-delete-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.profile-delete-btn:focus-visible {
+  outline: none;
+  border-color: var(--text-error, #dc2626);
+  box-shadow: var(--shadow-focus);
+}
+
+.profile-delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.25rem 0 1rem;
+  font-size: 0.875rem;
+}
+
+/* ===== 추가하기 트리거 버튼 ===== */
+.btn-add-profile {
+  width: 100%;
+  padding: 0.6875rem 1rem;
+  border: 1px dashed var(--border-dark);
+  background: var(--bg-container);
+  border-radius: 0.625rem;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.btn-add-profile:hover {
+  background: var(--bg-section);
+  border-color: var(--border-input-focus);
+  color: var(--border-input-focus);
+}
+
+.btn-add-profile:focus-visible {
+  outline: none;
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+/* ===== 폼 ===== */
+.profile-add-form {
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.profile-add-form .form-group {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.profile-add-form label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.form-hint {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+}
+
+.profile-name-input {
+  width: 100%;
+  padding: 0.5625rem 0.75rem;
+  border: 1px solid var(--border-input);
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  background-color: var(--bg-input);
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+
+.profile-name-input::placeholder {
+  color: var(--text-muted);
+}
+
+.profile-name-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-dark);
+}
+
+.profile-name-input:focus {
+  outline: none;
+  border-color: var(--border-input-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.profile-name-input:disabled {
+  background-color: var(--bg-section);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* 체크박스 */
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.125rem 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--border-input-focus);
+  margin: 0;
+}
+
+.checkbox-label:has(input:disabled) {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}

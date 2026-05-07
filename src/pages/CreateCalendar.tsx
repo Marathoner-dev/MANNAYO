@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCalendar } from '../services/calendar';
+import {
+  addProfile,
+  pickRandomColor,
+  setSelectedProfileId,
+  setProfileAuthenticated,
+} from '../services/profile';
 import { useAuth } from '../contexts/AuthContext';
 import { debugLog, debugError } from '../utils/debug';
 import './CreateCalendar.css';
 
 export function CreateCalendar() {
   const [title, setTitle] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [profilePassword, setProfilePassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,6 +39,24 @@ export function CreateCalendar() {
       return;
     }
 
+    if (!profileName.trim()) {
+      debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 프로필 이름 없음');
+      setError('내 프로필 이름을 입력해주세요.');
+      return;
+    }
+
+    if (!profilePassword.trim()) {
+      debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 프로필 비밀번호 없음');
+      setError('프로필 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    if (profilePassword.length < 4) {
+      debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 프로필 비밀번호 너무 짧음');
+      setError('프로필 비밀번호는 4자 이상이어야 합니다.');
+      return;
+    }
+
     if (usePassword && !password.trim()) {
       debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 비밀번호 없음');
       setError('비밀번호를 입력해주세요.');
@@ -52,6 +78,27 @@ export function CreateCalendar() {
         usePassword ? password : undefined
       );
       debugLog('CREATE_CALENDAR', '달력 생성 성공', { calendarId: calendar.id, code: calendar.code });
+
+      // 생성자 프로필 등록 (색상 임의 배정 + 비밀번호 필수)
+      try {
+        const profile = await addProfile(
+          calendar.id,
+          profileName.trim(),
+          pickRandomColor(),
+          profilePassword
+        );
+        setSelectedProfileId(calendar.id, profile.id);
+        // 본인이 만든 프로필은 자동 인증 처리
+        setProfileAuthenticated(profile.id);
+        debugLog('CREATE_CALENDAR', '생성자 프로필 등록 완료', {
+          calendarId: calendar.id,
+          profileId: profile.id,
+          name: profile.name,
+        });
+      } catch (profileErr: any) {
+        debugError('CREATE_CALENDAR', '생성자 프로필 등록 실패 (달력 이동은 계속)', profileErr);
+      }
+
       // 생성 성공 시 달력 상세 페이지로 이동
       navigate(`/calendar/${calendar.code}`);
     } catch (err: any) {
@@ -79,6 +126,34 @@ export function CreateCalendar() {
               placeholder="예: 팀 회의 일정"
               required
               maxLength={50}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="profileName">내 프로필 이름 *</label>
+            <input
+              id="profileName"
+              type="text"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="달력에서 표시할 이름"
+              required
+              maxLength={20}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="profilePassword">프로필 비밀번호 *</label>
+            <input
+              id="profilePassword"
+              type="password"
+              value={profilePassword}
+              onChange={(e) => setProfilePassword(e.target.value)}
+              placeholder="4자 이상 입력"
+              required
+              minLength={4}
               disabled={loading}
             />
           </div>

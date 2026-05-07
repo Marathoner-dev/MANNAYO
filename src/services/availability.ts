@@ -14,88 +14,86 @@ import type { Availability } from '../types';
 import { debugLog, debugError, measurePerformance } from '../utils/debug';
 
 /**
- * 날짜별 가용성 토글
+ * 프로필별 날짜 가용성 토글
+ * (calendarId, date, profileId) 조합 단위로 문서를 관리
  */
 export async function toggleAvailability(
   calendarId: string,
-  date: string
+  date: string,
+  profileId: string
 ): Promise<Availability> {
-  // 날짜 형식 검증 및 정규화 (YYYY-MM-DD 형식 보장)
-  // 사용자가 클릭한 날짜와 동일하게 저장되도록 보장
   const normalizedDate = date.trim();
-  
-  // 날짜 형식 검증 (YYYY-MM-DD)
+
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
     const error = new Error(`잘못된 날짜 형식입니다: ${date}. YYYY-MM-DD 형식이어야 합니다.`);
     debugError('AVAILABILITY', 'toggleAvailability - 날짜 형식 오류', error);
     throw error;
   }
-  
-  debugLog('AVAILABILITY', 'toggleAvailability 시작', { calendarId, date: normalizedDate });
+
+  if (!profileId) {
+    const error = new Error('프로필이 선택되지 않았습니다.');
+    debugError('AVAILABILITY', 'toggleAvailability - profileId 누락', error);
+    throw error;
+  }
+
+  debugLog('AVAILABILITY', 'toggleAvailability 시작', { calendarId, date: normalizedDate, profileId });
 
   return measurePerformance('toggleAvailability', async () => {
     try {
-      // 달력의 서브컬렉션으로 가용성 데이터 접근
       const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
-      
-      // 기존 가용성 데이터 찾기 (날짜로만 검색 - 사용자 구분 없음)
-      // 정규화된 날짜로 검색하여 사용자가 클릭한 날짜와 정확히 일치하도록 보장
+
+      // (date, profileId) 조합으로 검색
       const q = query(
         availabilityRef,
-        where('date', '==', normalizedDate)
+        where('date', '==', normalizedDate),
+        where('profileId', '==', profileId)
       );
 
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        // 새로 생성 (불가일로 설정) - 모든 사용자에게 적용
-        // 정규화된 날짜를 저장하여 사용자가 클릭한 날짜와 정확히 일치하도록 보장
-        debugLog('AVAILABILITY', '새 가용성 데이터 생성 - Firestore에 저장 (모든 사용자에게 적용)', { 
-          calendarId, 
+        debugLog('AVAILABILITY', '새 가용성 데이터 생성 (프로필별)', {
+          calendarId,
           date: normalizedDate,
-          originalDate: date,
+          profileId,
         });
         const newAvailability = {
-          date: normalizedDate, // 정규화된 날짜 저장
+          date: normalizedDate,
+          profileId,
           isUnavailable: true,
           createdAt: new Date(),
         };
 
         const docRef = await addDoc(availabilityRef, newAvailability);
-        debugLog('AVAILABILITY', 'Firestore 저장 완료 - 새 문서 생성됨', { 
+        debugLog('AVAILABILITY', 'Firestore 저장 완료', {
           id: docRef.id,
           calendarId,
           date: normalizedDate,
-          originalDate: date,
+          profileId,
         });
 
         return {
           id: docRef.id,
           calendarId,
-          ...newAvailability, // newAvailability에 이미 date가 포함되어 있음
+          ...newAvailability,
         };
       } else {
-        // 기존 데이터 토글 (날짜별로 하나만 존재)
+        // 기존 (date, profileId) 데이터 토글
         const availabilityDoc = querySnapshot.docs[0];
         const currentStatus = availabilityDoc.data().isUnavailable;
         const newStatus = !currentStatus;
 
-        debugLog('AVAILABILITY', '가용성 상태 토글 - Firestore 업데이트 (모든 사용자에게 적용)', {
+        debugLog('AVAILABILITY', '가용성 토글 (프로필별)', {
           id: availabilityDoc.id,
           currentStatus,
           newStatus,
           calendarId,
           date: normalizedDate,
-          originalDate: date,
+          profileId,
         });
 
         await updateDoc(doc(availabilityRef, availabilityDoc.id), {
           isUnavailable: newStatus,
-        });
-
-        debugLog('AVAILABILITY', 'Firestore 업데이트 완료', {
-          id: availabilityDoc.id,
-          newStatus,
         });
 
         const data = availabilityDoc.data();
@@ -103,6 +101,7 @@ export async function toggleAvailability(
           id: availabilityDoc.id,
           calendarId,
           date: data.date,
+          profileId: data.profileId,
           isUnavailable: newStatus,
           createdAt: data.createdAt?.toDate() || new Date(),
         };
@@ -149,6 +148,7 @@ export async function getAvailabilityByCalendar(
           id: doc.id,
           calendarId, // 서브컬렉션이므로 calendarId는 부모에서 가져옴
           date: data.date,
+          profileId: data.profileId || '',
           isUnavailable: data.isUnavailable,
           createdAt: data.createdAt?.toDate() || new Date(),
         });
@@ -196,6 +196,7 @@ export function subscribeAvailability(
           id: doc.id,
           calendarId, // 서브컬렉션이므로 calendarId는 부모에서 가져옴
           date: data.date,
+          profileId: data.profileId || '',
           isUnavailable: data.isUnavailable,
           createdAt: data.createdAt?.toDate() || new Date(),
         });
@@ -221,13 +222,16 @@ export function subscribeAvailability(
 }
 
 /**
- * 특정 날짜가 불가능한지 확인 (모든 사용자에게 공통)
+ * 특정 (날짜, 프로필) 조합이 불가능한지 확인
  */
-export function isDateUnavailable(
+export function isDateUnavailableForProfile(
   availability: Availability[],
-  date: string
+  date: string,
+  profileId: string
 ): boolean {
-  const dateAvailability = availability.find((av) => av.date === date);
-  return dateAvailability?.isUnavailable || false;
+  const match = availability.find(
+    (av) => av.date === date && av.profileId === profileId
+  );
+  return match?.isUnavailable || false;
 }
 

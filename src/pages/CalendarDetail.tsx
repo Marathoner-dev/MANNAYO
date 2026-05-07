@@ -8,6 +8,17 @@ import type { Calendar, Availability } from '../types';
 import { debugLog, debugError } from '../utils/debug';
 import { PasswordModal } from '../components/PasswordModal';
 import { AddressSearchModal } from '../components/AddressSearchModal';
+import { ProfileSelectModal } from '../components/ProfileSelectModal';
+import {
+  getSelectedProfileId,
+  setSelectedProfileId,
+  getProfileById,
+  getProfilesByCalendar,
+  subscribeProfiles,
+  clearSelectedProfileId,
+  isProfileAuthenticated,
+} from '../services/profile';
+import type { Profile } from '../types';
 import { setMetaTags, resetMetaTags } from '../utils/metaTags';
 import { captureCalendarImage } from '../utils/captureCalendar';
 import './CalendarDetail.css';
@@ -49,6 +60,10 @@ export function CalendarDetail() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const calendarContainerRef = useRef<HTMLDivElement>(null);
   const confirmDateInProgressRef = useRef(false); // 확정 처리 중복 실행 방지
 
@@ -182,10 +197,115 @@ export function CalendarDetail() {
     loadCalendar();
   }, [code]);
 
+  // 다른 달력으로 이동 시 프로필 상태 초기화 + 오늘 월로 리셋
+  useEffect(() => {
+    setSelectedProfile(null);
+    setShowProfileModal(false);
+    setProfileChecked(false);
+    setCurrentDate(new Date());
+  }, [calendar?.id]);
+
+  // 비밀번호 인증 완료 후 프로필 확인 (localStorage에 저장된 프로필 ID 검증)
+  useEffect(() => {
+    if (!calendar?.id) return;
+    if (!passwordVerified) return;
+    if (profileChecked) return;
+
+    let cancelled = false;
+
+    const checkProfile = async () => {
+      const calendarId = calendar.id;
+      const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
+
+      // 달력 주인(접속자 = createdBy)은 첫 생성 프로필로 자동 고정
+      if (isOwner) {
+        debugLog('CALENDAR_DETAIL', '달력 주인 - 첫 생성 프로필 자동 선택', { calendarId, uid: currentUser.uid });
+        const profiles = await getProfilesByCalendar(calendarId);
+        if (cancelled) return;
+
+        if (profiles.length > 0) {
+          const firstProfile = [...profiles].sort(
+            (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+          )[0];
+          debugLog('CALENDAR_DETAIL', '주인 프로필 고정', {
+            profileId: firstProfile.id,
+            name: firstProfile.name,
+          });
+          setSelectedProfileId(calendarId, firstProfile.id);
+          setSelectedProfile(firstProfile);
+          setProfileChecked(true);
+          return;
+        }
+
+        // 프로필이 아직 없는 주인 → 모달로 생성 유도
+        debugLog('CALENDAR_DETAIL', '주인이지만 프로필 없음 - 모달 표시', { calendarId });
+        setShowProfileModal(true);
+        setProfileChecked(true);
+        return;
+      }
+
+      const storedId = getSelectedProfileId(calendarId);
+
+      if (storedId) {
+        debugLog('CALENDAR_DETAIL', '저장된 프로필 ID 검증 시작', { calendarId, storedId });
+        const profile = await getProfileById(calendarId, storedId);
+        if (cancelled) return;
+
+        if (profile) {
+          // 비밀번호 보호 프로필인데 아직 인증 캐시가 없으면 모달로 재인증 유도
+          if (profile.password && !isProfileAuthenticated(profile.id)) {
+            debugLog('CALENDAR_DETAIL', '저장된 프로필 비밀번호 미인증 - 모달 노출', {
+              profileId: profile.id,
+            });
+            setShowProfileModal(true);
+            setProfileChecked(true);
+            return;
+          }
+
+          debugLog('CALENDAR_DETAIL', '저장된 프로필 유효', { profileId: profile.id, name: profile.name });
+          setSelectedProfile(profile);
+          setProfileChecked(true);
+          return;
+        }
+
+        // 저장된 ID가 더 이상 유효하지 않으면 제거
+        debugLog('CALENDAR_DETAIL', '저장된 프로필 ID 무효 - 재선택 필요', { calendarId, storedId });
+        clearSelectedProfileId(calendarId);
+      }
+
+      if (!cancelled) {
+        setShowProfileModal(true);
+        setProfileChecked(true);
+      }
+    };
+
+    checkProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendar?.id, calendar?.createdBy, currentUser?.uid, passwordVerified, profileChecked]);
+
+  // 프로필 목록 실시간 구독 (날짜 칸 컬럼 분할 렌더링용)
+  useEffect(() => {
+    if (!calendar?.id) return;
+    if (calendar.usePassword && calendar.password && !passwordVerified) return;
+
+    const unsubscribe = subscribeProfiles(calendar.id, (data) => {
+      // createdAt 오름차순 정렬 (첫 생성 프로필이 항상 첫 컬럼)
+      const sorted = [...data].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+      );
+      setProfiles(sorted);
+    });
+
+    return () => unsubscribe();
+  }, [calendar?.id, calendar?.usePassword, calendar?.password, passwordVerified]);
+
   // 가용성 데이터 변경 감지 및 사이트 자동 업데이트 (로그인 없이도 가능, 비밀번호 인증 후)
   useEffect(() => {
     if (!calendar?.id) return;
-    
+
     // 비밀번호가 필요한데 인증되지 않은 경우 변경 감지하지 않음
     if (calendar.usePassword && calendar.password && !passwordVerified) {
       debugLog('CALENDAR_DETAIL', '비밀번호 미인증으로 변경 감지 건너뜀', { calendarId: calendar.id });
@@ -290,9 +410,19 @@ export function CalendarDetail() {
   const handleDateClick = async (date: string) => {
     if (!calendar?.id) return;
 
+    // 지나간 날짜는 상호작용 불가
+    if (isPastDate(date)) return;
+
     // 비밀번호가 필요한데 인증되지 않은 경우
     if (calendar.usePassword && calendar.password && !passwordVerified) {
       setShowPasswordModal(true);
+      return;
+    }
+
+    // 프로필이 선택되지 않은 경우 → 모달로 유도
+    if (!selectedProfile) {
+      debugLog('CALENDAR_DETAIL', '프로필 미선택 - 프로필 모달 표시');
+      setShowProfileModal(true);
       return;
     }
 
@@ -302,25 +432,27 @@ export function CalendarDetail() {
     }
 
     try {
-      debugLog('CALENDAR_DETAIL', '날짜 클릭 - Firestore에 저장 시작 (모든 사용자에게 적용)', { 
-        date, 
+      debugLog('CALENDAR_DETAIL', '날짜 클릭 - 프로필별 Firestore 저장', {
+        date,
         calendarId: calendar.id,
+        profileId: selectedProfile.id,
+        profileName: selectedProfile.name,
       });
-      
-      // Firestore에 실제로 저장 (모든 사용자에게 공통으로 적용)
-      const updatedAvailability = await toggleAvailability(calendar.id, date);
-      
+
+      const updatedAvailability = await toggleAvailability(
+        calendar.id,
+        date,
+        selectedProfile.id
+      );
+
       debugLog('CALENDAR_DETAIL', 'Firestore 저장 완료', {
         date,
         availabilityId: updatedAvailability.id,
+        profileId: updatedAvailability.profileId,
         isUnavailable: updatedAvailability.isUnavailable,
       });
-      
+
       setSelectedDate(date);
-      
-      // 성공 메시지 (선택사항)
-      // console.log(`날짜 ${date}가 ${updatedAvailability.isUnavailable ? '불가능' : '가능'}으로 설정되었습니다.`);
-      
     } catch (err: any) {
       debugError('CALENDAR_DETAIL', 'Firestore 저장 실패', {
         error: err,
@@ -336,6 +468,8 @@ export function CalendarDetail() {
     if (!calendar || calendar.createdBy !== currentUser?.uid) {
       return; // 생성자만 확정일 설정 가능
     }
+
+    if (isPastDate(date)) return;
 
     debugLog('CALENDAR_DETAIL', '길게 누르기 시작', { date });
     setLongPressDate(date);
@@ -477,15 +611,32 @@ export function CalendarDetail() {
     setCurrentDate(new Date(year, month + 1, 1));
   };
 
-  const isDateUnavailable = (date: string): boolean => {
-    // 날짜별로 관리되므로 사용자 구분 없이 모든 사용자에게 동일하게 적용
-    const dateAvailability = availability.find((av) => av.date === date);
-    return dateAvailability?.isUnavailable || false;
+  const handleGoToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const today = new Date();
+  const isFutureMonth =
+    year > today.getFullYear() ||
+    (year === today.getFullYear() && month > today.getMonth());
+  const isPastMonth =
+    year < today.getFullYear() ||
+    (year === today.getFullYear() && month < today.getMonth());
+
+  const isDateUnavailableForProfile = (date: string, profileId: string): boolean => {
+    const match = availability.find(
+      (av) => av.date === date && av.profileId === profileId
+    );
+    return match?.isUnavailable || false;
   };
 
 
   const isConfirmedDate = (date: string): boolean => {
     return calendar?.confirmedDate === date;
+  };
+
+  const isPastDate = (date: string): boolean => {
+    return date < formatDate(new Date());
   };
 
   const handlePasswordCorrect = (inputPassword: string) => {
@@ -508,6 +659,29 @@ export function CalendarDetail() {
       setPasswordError('비밀번호가 일치하지 않습니다.');
       debugLog('CALENDAR_DETAIL', '비밀번호 확인 실패', { calendarId: calendar.id });
     }
+  };
+
+  const handleProfileSelect = (profile: Profile) => {
+    if (!calendar?.id) return;
+
+    // 달력 주인은 첫 생성 프로필로 항상 고정 — 다른 프로필을 골라도 무시
+    const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
+    if (isOwner && profiles.length > 0 && profile.id !== profiles[0].id) {
+      debugLog('CALENDAR_DETAIL', '주인은 다른 프로필 선택 불가 - 무시', {
+        attemptedProfileId: profile.id,
+      });
+      return;
+    }
+
+    debugLog('CALENDAR_DETAIL', '프로필 선택 완료', {
+      calendarId: calendar.id,
+      profileId: profile.id,
+      name: profile.name,
+      color: profile.color,
+    });
+    setSelectedProfileId(calendar.id, profile.id);
+    setSelectedProfile(profile);
+    setShowProfileModal(false);
   };
 
   const handleShare = async () => {
@@ -682,6 +856,25 @@ export function CalendarDetail() {
           <div className="calendar-header-top">
             <h1>{calendar.title}</h1>
             <div className="calendar-header-actions">
+              {selectedProfile && (() => {
+                const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileModal(true)}
+                    className={`profile-chip${isOwner ? ' profile-chip-locked' : ''}`}
+                    title={isOwner ? '주인 프로필 (고정) — 다른 프로필 관리' : '프로필 변경'}
+                  >
+                    <span
+                      className="profile-chip-avatar"
+                      style={{ backgroundColor: selectedProfile.color }}
+                    >
+                      {selectedProfile.name.charAt(0)}
+                    </span>
+                    <span className="profile-chip-name">{selectedProfile.name}</span>
+                  </button>
+                );
+              })()}
               <button
                 onClick={handleShare}
                 className="btn btn-share"
@@ -722,6 +915,19 @@ export function CalendarDetail() {
               <span className={`confirmed-badge ${!calendar.confirmedLocation ? 'undecided' : ''}`}>
                 장소: {calendar.confirmedLocation || '미정'}
               </span>
+              {profiles.length > 0 && (
+                <div className="profile-user-list">
+                  {profiles.map((p) => (
+                    <div key={p.id} className="profile-user-item">
+                      <span
+                        className="profile-user-swatch"
+                        style={{ backgroundColor: p.color }}
+                      />
+                      <span className="profile-user-name">{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {currentUser && calendar.createdBy === currentUser.uid && (calendar.confirmedDate || calendar.confirmedLocation) && (
                 <button
                   onClick={handleCancelConfirmedDate}
@@ -736,13 +942,43 @@ export function CalendarDetail() {
         </div>
 
         <div className="calendar-controls">
-          <button onClick={handlePrevMonth} className="btn btn-outline">
-            ← 이전 달
-          </button>
+          <div className="calendar-nav-segment">
+            <button
+              onClick={handlePrevMonth}
+              className="btn btn-outline btn-segment"
+            >
+              ← 이전 달
+            </button>
+            {isFutureMonth && (
+              <button
+                onClick={handleGoToday}
+                className="btn btn-outline btn-segment"
+                type="button"
+                aria-label="오늘 월로 이동"
+              >
+                돌아가기
+              </button>
+            )}
+          </div>
           <h2>{year}년 {monthNames[month]}</h2>
-          <button onClick={handleNextMonth} className="btn btn-outline">
-            다음 달 →
-          </button>
+          <div className="calendar-nav-segment">
+            {isPastMonth && (
+              <button
+                onClick={handleGoToday}
+                className="btn btn-outline btn-segment"
+                type="button"
+                aria-label="오늘 월로 이동"
+              >
+                돌아가기
+              </button>
+            )}
+            <button
+              onClick={handleNextMonth}
+              className="btn btn-outline btn-segment"
+            >
+              다음 달 →
+            </button>
+          </div>
         </div>
 
         <div className="calendar-grid-vertical">
@@ -763,14 +999,16 @@ export function CalendarDetail() {
                     }
 
                     const dateKey = getDateKey(year, month, day);
-                    const unavailable = isDateUnavailable(dateKey);
                     const confirmed = isConfirmedDate(dateKey);
-                    const isToday = dateKey === formatDate(new Date());
+                    const past = isPastDate(dateKey);
+                    const hasAnyUnavailable = profiles.some((p) =>
+                      isDateUnavailableForProfile(dateKey, p.id)
+                    );
 
                     return (
                       <div
                         key={day}
-                        className={`calendar-day ${unavailable ? 'unavailable' : ''} ${confirmed ? 'confirmed' : ''} ${isToday ? 'today' : ''} ${longPressDate === dateKey ? 'long-pressing' : ''}`}
+                        className={`calendar-day ${hasAnyUnavailable ? 'has-unavailable' : ''} ${confirmed ? 'confirmed' : ''} ${past ? 'past' : ''} ${longPressDate === dateKey ? 'long-pressing' : ''}`}
                         onClick={() => handleDateClick(dateKey)}
                         onMouseDown={() => handleLongPressStart(dateKey)}
                         onMouseUp={handleLongPressEnd}
@@ -779,6 +1017,22 @@ export function CalendarDetail() {
                         onTouchEnd={handleLongPressEnd}
                         onTouchCancel={handleLongPressEnd}
                       >
+                        {profiles.length > 0 && (
+                          <div className="day-columns" aria-hidden="true">
+                            {profiles.map((p) => {
+                              const unavailable = isDateUnavailableForProfile(dateKey, p.id);
+                              return (
+                                <div
+                                  key={p.id}
+                                  className="day-column"
+                                  style={{
+                                    backgroundColor: unavailable ? p.color : 'transparent',
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                         <div className="day-number">{day}</div>
                         {confirmed && <div className="confirmed-indicator">✓</div>}
                       </div>
@@ -796,10 +1050,15 @@ export function CalendarDetail() {
             <div className="legend-color available"></div>
             <span>가능</span>
           </div>
-          <div className="legend-item">
-            <div className="legend-color unavailable"></div>
-            <span>불가능 (클릭하기)</span>
-          </div>
+          {selectedProfile && (
+            <div className="legend-item">
+              <div
+                className="legend-color"
+                style={{ backgroundColor: '#ef4444' }}
+              />
+              <span>불가능 (클릭하기)</span>
+            </div>
+          )}
           <div className="legend-item">
             <div className="legend-color confirmed"></div>
             <span>확정일 (길게누르기)</span>
@@ -864,6 +1123,21 @@ export function CalendarDetail() {
         isOpen={showAddressModal}
         onClose={() => setShowAddressModal(false)}
         onSelectAddress={handleSelectAddress}
+      />
+
+      <ProfileSelectModal
+        isOpen={showProfileModal}
+        calendarId={calendar.id}
+        calendarTitle={calendar.title}
+        onSelect={handleProfileSelect}
+        onClose={selectedProfile ? () => setShowProfileModal(false) : undefined}
+        isOwner={!!currentUser && calendar.createdBy === currentUser.uid}
+        onProfileDeleted={(deletedId) => {
+          if (selectedProfile?.id === deletedId) {
+            clearSelectedProfileId(calendar.id);
+            setSelectedProfile(null);
+          }
+        }}
       />
     </div>
   );
