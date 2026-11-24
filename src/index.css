@@ -1,6 +1,6 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    'Apple SD Gothic Neo', 'Segoe UI', 'Roboto', 'Noto Sans KR', 'Helvetica Neue',
     sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -48,6 +48,26 @@
 
   --shadow-default: 0 4px 6px rgba(0, 0, 0, 0.1);
   --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.1);
+
+  /* 표면·상태 색 (달력 화면) */
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --surface-3: #e7e9ee;
+  --thumb: #ffffff;
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.16);
+  --accent: #2563eb;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --success: #16a34a;
+  --success-soft: rgba(22, 163, 74, 0.12);
+  --warning: #b45309;
+  --warning-soft: rgba(217, 119, 6, 0.12);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --sunday: #e5484d;
+  --saturday: #2f6fe4;
+  /* 프로필 색을 밝게 끌어올리는 정도 (어두운 테마에서 대비 확보) */
+  --lift: 0%;
 }
 
 /* Dark theme (system preference) */
@@ -90,6 +110,24 @@
 
     --shadow-default: 0 4px 6px rgba(0, 0, 0, 0.3);
     --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.2);
+
+    --surface: #1c1c1e;
+    --surface-2: #2c2c2e;
+    --surface-3: #3a3a3c;
+    --thumb: #636366;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --accent: #3b82f6;
+    --accent-soft: rgba(59, 130, 246, 0.2);
+    --success: #32d74b;
+    --success-soft: rgba(50, 215, 75, 0.16);
+    --warning: #ff9f0a;
+    --warning-soft: rgba(255, 159, 10, 0.16);
+    --danger: #ff453a;
+    --danger-soft: rgba(255, 69, 58, 0.16);
+    --sunday: #ff6961;
+    --saturday: #64a8ff;
+    --lift: 30%;
   }
 }
 

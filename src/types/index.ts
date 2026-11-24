@@ -5,6 +5,12 @@ export interface User {
   createdAt: Date;
 }
 
+/** 확정된 약속 시간 — 시(hour) 단위, end는 미포함 (예: 18~21시 → { start: 18, end: 21 }) */
+export interface ConfirmedTime {
+  start: number;
+  end: number;
+}
+
 export interface Calendar {
   id: string;
   title: string;
@@ -12,6 +18,8 @@ export interface Calendar {
   usePassword: boolean;
   password: string | null;
   confirmedDate: string | null;
+  /** null이면 종일 (또는 날짜 미확정) */
+  confirmedTime: ConfirmedTime | null;
   confirmedLocation: string | null;
   createdBy: string;
   participants: string[];
@@ -27,7 +35,9 @@ export interface Availability {
   date: string; // YYYY-MM-DD
   profileId: string;
   isUnavailable: boolean;
-  createdAt: Date;
+  /** 안 되는 시간(0~23시). null 또는 빈 배열이면 종일 불가 */
+  busyHours: number[] | null;
+  updatedAt: Date;
 }
 
 export interface Profile {

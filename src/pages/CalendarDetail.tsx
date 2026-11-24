@@ -1,743 +1,456 @@
-import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { findCalendarByCode } from '../services/calendar';
-import { setConfirmedDate } from '../services/calendar';
-import { toggleAvailability, subscribeAvailability } from '../services/availability';
-import { useAuth } from '../contexts/AuthContext';
-import type { Calendar, Availability } from '../types';
-import { debugLog, debugError } from '../utils/debug';
-import { PasswordModal } from '../components/PasswordModal';
-import { AddressSearchModal } from '../components/AddressSearchModal';
-import { ProfileSelectModal } from '../components/ProfileSelectModal';
 import {
-  getSelectedProfileId,
-  setSelectedProfileId,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { findCalendarByCode, setConfirmedDate, subscribeCalendar } from '../services/calendar';
+import { setDayBusy, subscribeAvailability } from '../services/availability';
+import {
+  clearSelectedProfileId,
   getProfileById,
   getProfilesByCalendar,
-  subscribeProfiles,
-  clearSelectedProfileId,
+  getSelectedProfileId,
   isProfileAuthenticated,
+  setSelectedProfileId,
+  subscribeProfiles,
 } from '../services/profile';
-import type { Profile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import type { Availability, Calendar, ConfirmedTime, Profile } from '../types';
+import { debugError, debugLog } from '../utils/debug';
 import { setMetaTags, resetMetaTags } from '../utils/metaTags';
 import { captureCalendarImage } from '../utils/captureCalendar';
+import {
+  buildBusyIndex,
+  commonFreeRanges,
+  findSuggestions,
+  formatConfirmedTime,
+  formatDateLong,
+  formatDateShort,
+  formatHourRange,
+  fromDateKey,
+  googleCalendarUrl,
+  toDateKey,
+  type DayBusy,
+  type HourRange,
+} from '../utils/schedule';
+import { PasswordModal } from '../components/PasswordModal';
+import { ProfileSelectModal } from '../components/ProfileSelectModal';
+import { MonthGrid } from '../components/calendar/MonthGrid';
+import { MonthPicker } from '../components/calendar/MonthPicker';
+import { HourPainter } from '../components/calendar/HourPainter';
+import { DayRoster } from '../components/calendar/DayRoster';
+import { SlotFinder } from '../components/calendar/SlotFinder';
+import { ConfirmSheet } from '../components/calendar/ConfirmSheet';
 import './CalendarDetail.css';
 
-// 날짜 유틸리티 함수들
-// 날짜 유틸리티 함수들
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
+const NO_HOURS: number[] = [];
+const ALL_DAY: DayBusy = { kind: 'allDay' };
+
+type MyMode = 'free' | 'allDay' | 'hours';
+
+function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    },
+    [query]
+  );
+  return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches);
 }
 
-function formatDate(date: Date): string {
-  // 로컬 시간대를 유지하여 YYYY-MM-DD 형식으로 변환
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getDateKey(year: number, month: number, day: number): string {
-  const date = new Date(year, month, day);
-  return formatDate(date);
-}
-
+/** 달력 코드가 바뀌면 화면 상태를 통째로 새로 시작한다 */
 export function CalendarDetail() {
   const { code } = useParams<{ code: string }>();
+  return <CalendarDetailView key={code} code={(code ?? '').toUpperCase()} />;
+}
+
+function CalendarDetailView({ code }: { code: string }) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
+  const [now] = useState(() => new Date());
+  const todayKey = toDateKey(now);
+
+  // ── 데이터 ──
   const [calendar, setCalendar] = useState<Calendar | null>(null);
   const [availability, setAvailability] = useState<Availability[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<string>('');
-  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [longPressDate, setLongPressDate] = useState<string | null>(null);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
+
+  // ── 인증·프로필 ──
   const [passwordVerified, setPasswordVerified] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileChecked, setProfileChecked] = useState(false);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const calendarContainerRef = useRef<HTMLDivElement>(null);
-  const confirmDateInProgressRef = useRef(false); // 확정 처리 중복 실행 방지
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  // ── 화면 ──
+  const [viewMonth, setViewMonth] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [paintMode, setPaintMode] = useState(false);
+  const [panelTab, setPanelTab] = useState<'day' | 'finder'>('day');
+  const [highlight, setHighlight] = useState<{ date: string; range: HourRange } | null>(null);
+  const [hourModeDate, setHourModeDate] = useState<string | null>(null);
+  const [confirmDraft, setConfirmDraft] = useState<{ date: string; time: ConfirmedTime | null } | null>(
+    null
+  );
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [toast, setToast] = useState<{ id: number; message: string; tone: 'info' | 'error' } | null>(
+    null
+  );
 
-  // 초기 디버깅 로그
+  const boardRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const isNarrow = useMediaQuery('(max-width: 1023px)');
+  const isPhone = useMediaQuery('(max-width: 640px)');
+
+  const isOwner = !!currentUser && !!calendar && calendar.createdBy === currentUser.uid;
+  const unlocked = !!calendar && (!calendar.usePassword || !calendar.password || passwordVerified);
+
+  // 달력 불러오기 (코드로 찾기, 로그인 없이도 가능)
   useEffect(() => {
-    debugLog('CALENDAR_DETAIL', '컴포넌트 마운트', {
-      code,
-      hasCode: !!code,
-      currentUser: currentUser?.uid || 'anonymous',
-      loading,
-      error,
-    });
-  }, []);
+    let cancelled = false;
 
-  // 달력 데이터 로드 (코드로 찾기, 로그인 없이도 가능)
-  useEffect(() => {
-    debugLog('CALENDAR_DETAIL', 'useEffect 실행', { code, hasCode: !!code });
-    
-    if (!code) {
-      debugLog('CALENDAR_DETAIL', '코드가 없음', { code });
-      setError('달력 코드가 필요합니다.');
-      setLoading(false);
-      return;
-    }
-
-    const loadCalendar = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        debugLog('CALENDAR_DETAIL', '달력 데이터 로드 시작', { 
-          code, 
-          codeUpperCase: code.toUpperCase(),
-          timestamp: new Date().toISOString()
-        });
-        
-        // 코드로 달력 찾기
-        const calendarData = await findCalendarByCode(code.toUpperCase());
-        
-        debugLog('CALENDAR_DETAIL', 'findCalendarByCode 결과', {
-          found: !!calendarData,
-          calendarData: calendarData ? {
-            id: calendarData.id,
-            code: calendarData.code,
-            title: calendarData.title,
-          } : null,
-        });
-        
-        if (!calendarData) {
-          const errorMsg = `코드 "${code.toUpperCase()}"에 해당하는 달력을 찾을 수 없습니다.`;
-          debugLog('CALENDAR_DETAIL', '달력을 찾을 수 없음', { code: code.toUpperCase() });
-          setError(errorMsg);
+    findCalendarByCode(code)
+      .then((data) => {
+        if (cancelled) return;
+        if (!data) {
+          setError(`코드 "${code}"에 해당하는 달력을 찾을 수 없어요.`);
           setLoading(false);
           return;
         }
 
-        setCalendar(calendarData);
-        debugLog('CALENDAR_DETAIL', '달력 데이터 로드 완료', {
-          id: calendarData.id,
-          code: calendarData.code,
-          title: calendarData.title,
-          usePassword: calendarData.usePassword,
-          confirmedDate: calendarData.confirmedDate,
-          confirmedLocation: calendarData.confirmedLocation,
-        });
+        setCalendar(data);
 
-        // ========== 공유 미리보기 메타 태그 설정 ==========
-        // 이 부분을 수정하여 공유 시 표시되는 정보를 변경할 수 있습니다.
-        const calendarUrl = `${window.location.origin}/calendar/${calendarData.code}`;
-        const defaultPreviewImageUrl = `${window.location.origin}/calendar-preview.jpg`;
-        
-        // 기본 메타 태그 설정 (이미지 캡처 전)
+        // 공유 미리보기 메타 태그 (이미지 캡처 전 기본값)
+        const calendarUrl = `${window.location.origin}/calendar/${data.code}`;
+        const previewImage = `${window.location.origin}/calendar-preview.jpg`;
+        const description = `함께 약속 날짜를 정해보세요! "${data.title}" 달력에 참여하세요.`;
         setMetaTags({
-          // 브라우저 탭 제목
-          title: `${calendarData.title} - 만나요`,
-          
-          // 검색 엔진 및 소셜 미디어 설명
-          description: `"${calendarData.title}" 달력에 참여하여 약속 날짜를 조율해보세요.`,
-          
-          // Open Graph (Facebook, LinkedIn 등)
-          ogTitle: calendarData.title,
-          ogDescription: `함께 약속 날짜를 정해보세요! "${calendarData.title}" 달력에 참여하세요.`,
-          ogImage: defaultPreviewImageUrl,
+          title: `${data.title} - 만나요`,
+          description: `"${data.title}" 달력에 참여하여 약속 날짜를 조율해보세요.`,
+          ogTitle: data.title,
+          ogDescription: description,
+          ogImage: previewImage,
           ogImageWidth: '1200',
           ogImageHeight: '630',
           ogType: 'website',
           ogUrl: calendarUrl,
-          
-          // Twitter Card
           twitterCard: 'summary_large_image',
-          twitterTitle: calendarData.title,
-          twitterDescription: `함께 약속 날짜를 정해보세요! "${calendarData.title}" 달력에 참여하세요.`,
-          twitterImage: defaultPreviewImageUrl,
+          twitterTitle: data.title,
+          twitterDescription: description,
+          twitterImage: previewImage,
         });
 
-        // 비밀번호가 필요한 경우 비밀번호 모달 표시
-        if (calendarData.usePassword && calendarData.password) {
-          // 로컬 스토리지에서 인증 상태 확인
-          const authKey = `calendar_auth_${calendarData.id}`;
-          const isAuthenticated = localStorage.getItem(authKey) === 'true';
-          
-          if (!isAuthenticated) {
-            debugLog('CALENDAR_DETAIL', '비밀번호 필요', { calendarId: calendarData.id });
-            setShowPasswordModal(true);
-            setLoading(false);
-            return;
-          } else {
-            debugLog('CALENDAR_DETAIL', '이미 인증됨', { calendarId: calendarData.id });
-            setPasswordVerified(true);
-          }
-        } else {
-          setPasswordVerified(true);
-        }
-      } catch (err: any) {
-        debugError('CALENDAR_DETAIL', '달력 데이터 로드 실패', err);
-        const errorMessage = err.message || err.toString() || '달력을 불러오는데 실패했습니다.';
-        debugLog('CALENDAR_DETAIL', '에러 상세', {
-          message: errorMessage,
-          code: err.code,
-          stack: err.stack,
-        });
-        setError(errorMessage);
-      } finally {
+        const needsPassword =
+          data.usePassword &&
+          !!data.password &&
+          localStorage.getItem(`calendar_auth_${data.id}`) !== 'true';
+        if (needsPassword) setShowPasswordModal(true);
+        else setPasswordVerified(true);
         setLoading(false);
-        debugLog('CALENDAR_DETAIL', '로딩 완료', { loading: false });
-      }
-    };
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        debugError('CALENDAR_DETAIL', '달력 데이터 로드 실패', err);
+        setError(err instanceof Error ? err.message : '달력을 불러오지 못했어요.');
+        setLoading(false);
+      });
 
-    loadCalendar();
+    return () => {
+      cancelled = true;
+    };
   }, [code]);
 
-  // 다른 달력으로 이동 시 프로필 상태 초기화 + 오늘 월로 리셋
-  useEffect(() => {
-    setSelectedProfile(null);
-    setShowProfileModal(false);
-    setProfileChecked(false);
-    setCurrentDate(new Date());
-  }, [calendar?.id]);
+  // 페이지를 떠날 때 기본 메타 태그로 되돌림
+  useEffect(() => resetMetaTags, []);
 
-  // 비밀번호 인증 완료 후 프로필 확인 (localStorage에 저장된 프로필 ID 검증)
+  // 프로필 확인: 주인은 첫 프로필로 고정, 그 외에는 저장된 프로필을 검증하고 없으면 선택 모달
   useEffect(() => {
-    if (!calendar?.id) return;
-    if (!passwordVerified) return;
-    if (profileChecked) return;
-
+    if (!calendar?.id || !passwordVerified || profileChecked || authLoading) return;
     let cancelled = false;
+    const calendarId = calendar.id;
 
-    const checkProfile = async () => {
-      const calendarId = calendar.id;
-      const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
-
-      // 달력 주인(접속자 = createdBy)은 첫 생성 프로필로 자동 고정
+    const check = async () => {
       if (isOwner) {
-        debugLog('CALENDAR_DETAIL', '달력 주인 - 첫 생성 프로필 자동 선택', { calendarId, uid: currentUser.uid });
-        const profiles = await getProfilesByCalendar(calendarId);
+        const list = await getProfilesByCalendar(calendarId);
         if (cancelled) return;
-
-        if (profiles.length > 0) {
-          const firstProfile = [...profiles].sort(
-            (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-          )[0];
-          debugLog('CALENDAR_DETAIL', '주인 프로필 고정', {
-            profileId: firstProfile.id,
-            name: firstProfile.name,
-          });
-          setSelectedProfileId(calendarId, firstProfile.id);
-          setSelectedProfile(firstProfile);
-          setProfileChecked(true);
-          return;
+        const first = [...list].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+        if (first) {
+          setSelectedProfileId(calendarId, first.id);
+          setSelectedProfile(first);
+        } else {
+          setShowProfileModal(true);
         }
-
-        // 프로필이 아직 없는 주인 → 모달로 생성 유도
-        debugLog('CALENDAR_DETAIL', '주인이지만 프로필 없음 - 모달 표시', { calendarId });
-        setShowProfileModal(true);
         setProfileChecked(true);
         return;
       }
 
       const storedId = getSelectedProfileId(calendarId);
+      const profile = storedId ? await getProfileById(calendarId, storedId) : null;
+      if (cancelled) return;
 
-      if (storedId) {
-        debugLog('CALENDAR_DETAIL', '저장된 프로필 ID 검증 시작', { calendarId, storedId });
-        const profile = await getProfileById(calendarId, storedId);
-        if (cancelled) return;
-
-        if (profile) {
-          // 비밀번호 보호 프로필인데 아직 인증 캐시가 없으면 모달로 재인증 유도
-          if (profile.password && !isProfileAuthenticated(profile.id)) {
-            debugLog('CALENDAR_DETAIL', '저장된 프로필 비밀번호 미인증 - 모달 노출', {
-              profileId: profile.id,
-            });
-            setShowProfileModal(true);
-            setProfileChecked(true);
-            return;
-          }
-
-          debugLog('CALENDAR_DETAIL', '저장된 프로필 유효', { profileId: profile.id, name: profile.name });
-          setSelectedProfile(profile);
-          setProfileChecked(true);
-          return;
-        }
-
-        // 저장된 ID가 더 이상 유효하지 않으면 제거
-        debugLog('CALENDAR_DETAIL', '저장된 프로필 ID 무효 - 재선택 필요', { calendarId, storedId });
-        clearSelectedProfileId(calendarId);
-      }
-
-      if (!cancelled) {
+      if (profile && (!profile.password || isProfileAuthenticated(profile.id))) {
+        setSelectedProfile(profile);
+      } else {
+        if (storedId && !profile) clearSelectedProfileId(calendarId);
         setShowProfileModal(true);
-        setProfileChecked(true);
       }
+      setProfileChecked(true);
     };
 
-    checkProfile();
-
+    check().catch((err) => debugError('CALENDAR_DETAIL', '프로필 확인 실패', err));
     return () => {
       cancelled = true;
     };
-  }, [calendar?.id, calendar?.createdBy, currentUser?.uid, passwordVerified, profileChecked]);
+  }, [calendar?.id, passwordVerified, profileChecked, authLoading, isOwner]);
 
-  // 프로필 목록 실시간 구독 (날짜 칸 컬럼 분할 렌더링용)
+  // 실시간 구독: 달력(확정 정보) · 프로필 · 가용성
   useEffect(() => {
-    if (!calendar?.id) return;
-    if (calendar.usePassword && calendar.password && !passwordVerified) return;
+    if (!calendar?.id || !unlocked) return;
+    const calendarId = calendar.id;
 
-    const unsubscribe = subscribeProfiles(calendar.id, (data) => {
-      // createdAt 오름차순 정렬 (첫 생성 프로필이 항상 첫 컬럼)
-      const sorted = [...data].sort(
-        (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
-      );
-      setProfiles(sorted);
+    const unsubCalendar = subscribeCalendar(calendarId, (c) => c && setCalendar(c));
+    const unsubProfiles = subscribeProfiles(calendarId, (data) => {
+      // 생성 순 정렬 — 첫 프로필(주인)이 항상 앞
+      setProfiles([...data].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime()));
     });
-
-    return () => unsubscribe();
-  }, [calendar?.id, calendar?.usePassword, calendar?.password, passwordVerified]);
-
-  // 가용성 데이터 변경 감지 및 사이트 자동 업데이트 (로그인 없이도 가능, 비밀번호 인증 후)
-  useEffect(() => {
-    if (!calendar?.id) return;
-
-    // 비밀번호가 필요한데 인증되지 않은 경우 변경 감지하지 않음
-    if (calendar.usePassword && calendar.password && !passwordVerified) {
-      debugLog('CALENDAR_DETAIL', '비밀번호 미인증으로 변경 감지 건너뜀', { calendarId: calendar.id });
-      return;
-    }
-
-    debugLog('CALENDAR_DETAIL', '가용성 데이터 변경 감지 시작', { 
-      calendarId: calendar.id,
-      passwordVerified,
-    });
-    
-    const unsubscribe = subscribeAvailability(calendar.id, (data) => {
-      debugLog('CALENDAR_DETAIL', '데이터베이스 변경 감지 - 사이트 상태 업데이트', {
-        calendarId: calendar.id,
-        count: data.length,
-        dates: data.map(av => av.date).slice(0, 5), // 처음 5개 날짜만 로그
-        unavailableDates: data.filter(av => av.isUnavailable).map(av => av.date).slice(0, 5),
-      });
-      
-      // 데이터베이스 변경사항을 감지하여 사이트 상태 업데이트
-      // 새로운 배열 참조를 생성하여 React가 변경을 감지하도록 함
-      setAvailability([...data]);
-      
-      debugLog('CALENDAR_DETAIL', '상태 업데이트 완료 - 리렌더링 트리거', {
-        calendarId: calendar.id,
-        newAvailabilityCount: data.length,
-      });
-    });
+    const unsubAvailability = subscribeAvailability(calendarId, setAvailability);
 
     return () => {
-      debugLog('CALENDAR_DETAIL', '가용성 데이터 변경 감지 해제', { calendarId: calendar.id });
-      unsubscribe();
+      unsubCalendar();
+      unsubProfiles();
+      unsubAvailability();
     };
-  }, [calendar?.id, passwordVerified]);
+  }, [calendar?.id, unlocked]);
 
-  // 달력 이미지 캡처 (렌더링 완료 후)
+  // 공유 미리보기용 달력 이미지 캡처
   useEffect(() => {
-    // 달력이 로드되고, 비밀번호 인증이 완료되었으며, 로딩이 끝난 후에만 캡처
-    if (!calendar || loading || !passwordVerified) return;
-    
-    // 비밀번호가 필요한데 인증되지 않은 경우 캡처하지 않음
-    if (calendar.usePassword && calendar.password && !passwordVerified) {
-      return;
-    }
+    if (!calendar?.id || !unlocked) return;
+    const calendarId = calendar.id;
+    const calendarCode = calendar.code;
 
-    // 렌더링 완료를 위해 약간의 지연
-    const captureTimer = setTimeout(async () => {
-      if (!calendarContainerRef.current) {
-        debugLog('CALENDAR_DETAIL', '캡처할 컨테이너를 찾을 수 없음');
-        return;
-      }
-
+    const timer = setTimeout(async () => {
+      if (!boardRef.current) return;
       try {
-        debugLog('CALENDAR_DETAIL', '달력 이미지 캡처 시작', { calendarId: calendar.id });
-        
-        // 달력 컨테이너 캡처
-        const imageUrl = await captureCalendarImage(calendarContainerRef.current, {
+        const imageUrl = await captureCalendarImage(boardRef.current, {
           width: 1200,
           height: 630,
           quality: 0.7,
           pixelRatio: 2,
           backgroundColor: '#ffffff',
         });
-
-        debugLog('CALENDAR_DETAIL', '달력 이미지 캡처 완료', { 
-          calendarId: calendar.id,
-          imageSize: imageUrl.length 
-        });
-
-        // 캡처한 이미지로 메타 태그 업데이트
-        const calendarUrl = `${window.location.origin}/calendar/${calendar.code}`;
         setMetaTags({
           ogImage: imageUrl,
           ogImageWidth: '1200',
           ogImageHeight: '630',
           twitterImage: imageUrl,
-          ogUrl: calendarUrl,
+          ogUrl: `${window.location.origin}/calendar/${calendarCode}`,
         });
-
-      } catch (error) {
-        debugError('CALENDAR_DETAIL', '달력 이미지 캡처 실패', error);
-        // 캡처 실패 시 기본 이미지 사용 (이미 설정됨)
+        debugLog('CALENDAR_DETAIL', '달력 이미지 캡처 완료', { calendarId });
+      } catch (err) {
+        debugError('CALENDAR_DETAIL', '달력 이미지 캡처 실패', err);
       }
-    }, 1000); // 렌더링 완료 대기
+    }, 1000);
 
-    return () => {
-      clearTimeout(captureTimer);
-    };
-  }, [calendar, loading, passwordVerified]);
+    return () => clearTimeout(timer);
+  }, [calendar?.id, calendar?.code, unlocked]);
 
-  // 컴포넌트 언마운트 시 타이머 정리 및 메타 태그 리셋
+  // 토스트 자동 닫힘
   useEffect(() => {
-    return () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // ── 파생 데이터 ──
+  const index = useMemo(() => buildBusyIndex(availability), [availability]);
+  const enteredIds = useMemo(
+    () => new Set(availability.filter((a) => a.isUnavailable).map((a) => a.profileId)),
+    [availability]
+  );
+  const profileIds = useMemo(() => profiles.map((p) => p.id), [profiles]);
+  const upcoming = useMemo(
+    () =>
+      findSuggestions({
+        profileIds,
+        index,
+        days: 28,
+        fromHour: 10,
+        toHour: 22,
+        minHours: 2,
+        weekdays: 'all',
+        now,
+      }).filter((s) => s.busyIds.length === 0),
+    [profileIds, index, now]
+  );
+
+  const showToast = (message: string, tone: 'info' | 'error' = 'info') =>
+    setToast((prev) => ({ id: (prev?.id ?? 0) + 1, message, tone }));
+
+  const scrollPanelIntoView = (force: boolean) => {
+    if (!isNarrow) return;
+    requestAnimationFrame(() => {
+      const el = panelRef.current;
+      if (!el) return;
+      if (force || el.getBoundingClientRect().top > window.innerHeight - 96) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-      // 페이지를 떠날 때 기본 메타 태그로 리셋
-      resetMetaTags();
-    };
-  }, [longPressTimer]);
+    });
+  };
 
-  const handleDateClick = async (date: string) => {
-    if (!calendar?.id) return;
-
-    // 지나간 날짜는 상호작용 불가
-    if (isPastDate(date)) return;
-
-    // 비밀번호가 필요한데 인증되지 않은 경우
-    if (calendar.usePassword && calendar.password && !passwordVerified) {
-      setShowPasswordModal(true);
-      return;
-    }
-
-    // 프로필이 선택되지 않은 경우 → 모달로 유도
+  // ── 쓰기 ──
+  const writeBusy = (date: string, busy: DayBusy | null) => {
+    if (!calendar) return;
     if (!selectedProfile) {
-      debugLog('CALENDAR_DETAIL', '프로필 미선택 - 프로필 모달 표시');
       setShowProfileModal(true);
       return;
     }
+    const profileId = selectedProfile.id;
+    const stale = availability
+      .filter((a) => a.date === date && a.profileId === profileId)
+      .map((a) => a.id);
+    setDayBusy(calendar.id, profileId, date, busy, stale).catch((err: unknown) => {
+      debugError('CALENDAR_DETAIL', '일정 저장 실패', err);
+      showToast(`저장하지 못했어요: ${err instanceof Error ? err.message : '알 수 없는 오류'}`, 'error');
+    });
+  };
 
-    // 길게 누르기 중이면 클릭 무시
-    if (longPressDate === date) {
+  const selectDate = (date: string, range?: HourRange) => {
+    const d = fromDateKey(date);
+    setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+    setSelectedDate(date);
+    setHighlight(range ? { date, range } : null);
+    setPanelTab('day');
+    scrollPanelIntoView(!!range);
+  };
+
+  const moveMonth = (delta: number) => {
+    const d = new Date(viewMonth.year, viewMonth.month + delta, 1);
+    setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+  };
+
+  const goToday = () => {
+    setViewMonth({ year: now.getFullYear(), month: now.getMonth() });
+    setSelectedDate(todayKey);
+    setHighlight(null);
+  };
+
+  const handlePaint = (date: string, busy: DayBusy | null) => {
+    setSelectedDate(date);
+    setHighlight(null);
+    writeBusy(date, busy);
+  };
+
+  const setMyMode = (mode: MyMode) => {
+    const current = selectedProfile ? index.get(selectedDate)?.get(selectedProfile.id) : undefined;
+    if (mode === 'hours') {
+      setHourModeDate(selectedDate);
+      if (current?.kind === 'allDay') writeBusy(selectedDate, null);
       return;
     }
+    setHourModeDate(null);
+    writeBusy(selectedDate, mode === 'allDay' ? ALL_DAY : null);
+  };
 
+  const handleConfirmSubmit = async (time: ConfirmedTime | null, location: string | null) => {
+    if (!calendar || !confirmDraft) return;
+    const date = confirmDraft.date;
+    await setConfirmedDate(calendar.id, date, location, time);
+    setCalendar({ ...calendar, confirmedDate: date, confirmedTime: time, confirmedLocation: location });
+    setConfirmDraft(null);
+    showToast('약속을 확정했어요');
+  };
+
+  const handleCancelConfirm = async () => {
+    if (!calendar || !confirm('확정을 취소할까요? 날짜·시간·장소가 모두 지워져요.')) return;
     try {
-      debugLog('CALENDAR_DETAIL', '날짜 클릭 - 프로필별 Firestore 저장', {
-        date,
-        calendarId: calendar.id,
-        profileId: selectedProfile.id,
-        profileName: selectedProfile.name,
-      });
-
-      const updatedAvailability = await toggleAvailability(
-        calendar.id,
-        date,
-        selectedProfile.id
-      );
-
-      debugLog('CALENDAR_DETAIL', 'Firestore 저장 완료', {
-        date,
-        availabilityId: updatedAvailability.id,
-        profileId: updatedAvailability.profileId,
-        isUnavailable: updatedAvailability.isUnavailable,
-      });
-
-      setSelectedDate(date);
-    } catch (err: any) {
-      debugError('CALENDAR_DETAIL', 'Firestore 저장 실패', {
-        error: err,
-        code: err.code,
-        message: err.message,
-        stack: err.stack,
-      });
-      alert(`날짜 상태 변경에 실패했습니다: ${err.message || err.code || '알 수 없는 오류'}`);
-    }
-  };
-
-  const handleLongPressStart = (date: string) => {
-    if (!calendar || calendar.createdBy !== currentUser?.uid) {
-      return; // 생성자만 확정일 설정 가능
-    }
-
-    if (isPastDate(date)) return;
-
-    debugLog('CALENDAR_DETAIL', '길게 누르기 시작', { date });
-    setLongPressDate(date);
-
-    const timer = setTimeout(() => {
-      // 길게 누르면 날짜를 선택하고 장소 선택 모달 열기
-      setSelectedDate(date);
-      setShowAddressModal(true);
-      setLongPressDate(null);
-      debugLog('CALENDAR_DETAIL', '길게 누르기 완료 - 장소 선택 모달 열기', { date });
-    }, 500); // 500ms 이상 누르면 장소 선택 모달 열기
-
-    setLongPressTimer(timer);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-    setLongPressDate(null);
-  };
-
-  const handleConfirmDate = async (locationOverride?: string) => {
-    if (!calendar || !selectedDate) return;
-
-    // 중복 실행 방지
-    if (confirmDateInProgressRef.current) {
-      debugLog('CALENDAR_DETAIL', '확정일 설정 중복 실행 방지', { 
-        calendarId: calendar.id,
-        date: selectedDate 
-      });
-      return;
-    }
-
-    // locationOverride가 있으면 사용, 없으면 selectedLocation 사용
-    const location = locationOverride ? locationOverride.trim() : selectedLocation.trim();
-    if (!location) {
-      alert('날짜와 장소를 모두 입력해주세요.');
-      return;
-    }
-
-    // 진행 중 플래그 설정
-    confirmDateInProgressRef.current = true;
-
-    try {
-      debugLog('CALENDAR_DETAIL', '확정일 설정', { 
-        calendarId: calendar.id, 
-        date: selectedDate, 
-        location,
-        previousDate: calendar.confirmedDate,
-        previousLocation: calendar.confirmedLocation,
-        locationOverride: !!locationOverride
-      });
-      
-      // 데이터베이스에 저장
-      await setConfirmedDate(calendar.id, selectedDate, location);
-      
-      // 로컬 상태 업데이트 (확정일과 장소 모두 반영)
-      // 새로운 객체를 생성하여 React가 변경을 감지하도록 함
-      const updatedCalendar = {
-        ...calendar,
-        confirmedDate: selectedDate,
-        confirmedLocation: location
-      };
-      setCalendar(updatedCalendar);
-      
-      // 입력 필드 초기화
-      setSelectedDate(null);
-      setSelectedLocation('');
-      
-      debugLog('CALENDAR_DETAIL', '확정일 설정 완료 - 상태 업데이트됨', {
-        newDate: selectedDate,
-        newLocation: location,
-        calendarUpdated: updatedCalendar.confirmedDate === selectedDate && updatedCalendar.confirmedLocation === location
-      });
-      
-      alert('약속 확정일과 장소가 설정되었습니다.');
-    } catch (err: any) {
-      debugError('CALENDAR_DETAIL', '확정일 설정 실패', err);
-      alert(err.message || '확정일 설정에 실패했습니다.');
-    } finally {
-      // 진행 중 플래그 해제
-      confirmDateInProgressRef.current = false;
-    }
-  };
-
-  const handleCancelConfirmedDate = async () => {
-    if (!calendar) return;
-
-    if (!confirm('확정일과 장소를 취소하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      debugLog('CALENDAR_DETAIL', '확정일 취소', { calendarId: calendar.id });
       await setConfirmedDate(calendar.id, null, null);
-      // 새로운 객체를 생성하여 React가 변경을 감지하도록 함
-      const updatedCalendar = {
-        ...calendar,
-        confirmedDate: null,
-        confirmedLocation: null
-      };
-      setCalendar(updatedCalendar);
-      alert('확정일과 장소가 취소되었습니다.');
-    } catch (err: any) {
-      debugError('CALENDAR_DETAIL', '확정일 취소 실패', err);
-      alert(err.message || '확정일 취소에 실패했습니다.');
+      setCalendar({ ...calendar, confirmedDate: null, confirmedTime: null, confirmedLocation: null });
+      showToast('확정을 취소했어요');
+    } catch (err) {
+      debugError('CALENDAR_DETAIL', '확정 취소 실패', err);
+      showToast(err instanceof Error ? err.message : '확정을 취소하지 못했어요.', 'error');
     }
-  };
-
-  const handleSearchAddress = () => {
-    setShowAddressModal(true);
-  };
-
-  const handleSelectAddress = (address: string) => {
-    setSelectedLocation(address);
-    debugLog('CALENDAR_DETAIL', '주소 검색 완료', { address, hasSelectedDate: !!selectedDate });
-    
-    // 길게 누르기로 날짜가 이미 선택된 경우 자동으로 확정 처리
-    // 중복 실행 방지를 위해 confirmDateInProgressRef 체크
-    if (selectedDate && address.trim() && !confirmDateInProgressRef.current) {
-      // 모달이 닫힌 후 확정 처리를 위해 약간의 지연
-      // locationOverride를 사용하여 상태 업데이트 타이밍 문제 해결
-      setTimeout(() => {
-        // setTimeout 내부에서도 다시 체크
-        if (!confirmDateInProgressRef.current) {
-          handleConfirmDate(address);
-        }
-      }, 100);
-    }
-  };
-
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
-  const handleGoToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  const today = new Date();
-  const isFutureMonth =
-    year > today.getFullYear() ||
-    (year === today.getFullYear() && month > today.getMonth());
-  const isPastMonth =
-    year < today.getFullYear() ||
-    (year === today.getFullYear() && month < today.getMonth());
-
-  const isDateUnavailableForProfile = (date: string, profileId: string): boolean => {
-    const match = availability.find(
-      (av) => av.date === date && av.profileId === profileId
-    );
-    return match?.isUnavailable || false;
-  };
-
-
-  const isConfirmedDate = (date: string): boolean => {
-    return calendar?.confirmedDate === date;
-  };
-
-  const isPastDate = (date: string): boolean => {
-    return date < formatDate(new Date());
-  };
-
-  const handlePasswordCorrect = (inputPassword: string) => {
-    if (!calendar) return;
-
-    debugLog('CALENDAR_DETAIL', '비밀번호 확인 시도', {
-      calendarId: calendar.id,
-      hasPassword: !!calendar.password,
-    });
-
-    if (calendar.password && inputPassword === calendar.password) {
-      // 비밀번호가 맞으면 인증 상태 저장
-      const authKey = `calendar_auth_${calendar.id}`;
-      localStorage.setItem(authKey, 'true');
-      setPasswordVerified(true);
-      setShowPasswordModal(false);
-      setPasswordError('');
-      debugLog('CALENDAR_DETAIL', '비밀번호 확인 성공', { calendarId: calendar.id });
-    } else {
-      setPasswordError('비밀번호가 일치하지 않습니다.');
-      debugLog('CALENDAR_DETAIL', '비밀번호 확인 실패', { calendarId: calendar.id });
-    }
-  };
-
-  const handleProfileSelect = (profile: Profile) => {
-    if (!calendar?.id) return;
-
-    // 달력 주인은 첫 생성 프로필로 항상 고정 — 다른 프로필을 골라도 무시
-    const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
-    if (isOwner && profiles.length > 0 && profile.id !== profiles[0].id) {
-      debugLog('CALENDAR_DETAIL', '주인은 다른 프로필 선택 불가 - 무시', {
-        attemptedProfileId: profile.id,
-      });
-      return;
-    }
-
-    debugLog('CALENDAR_DETAIL', '프로필 선택 완료', {
-      calendarId: calendar.id,
-      profileId: profile.id,
-      name: profile.name,
-      color: profile.color,
-    });
-    setSelectedProfileId(calendar.id, profile.id);
-    setSelectedProfile(profile);
-    setShowProfileModal(false);
   };
 
   const handleShare = async () => {
-    if (!calendar?.code) return;
-
+    if (!calendar) return;
     const url = `${window.location.origin}/calendar/${calendar.code}`;
-    
+
+    // 휴대폰에서는 기본 공유 시트(카카오톡 등)를 연다
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+      try {
+        await navigator.share({
+          title: calendar.title,
+          text: `"${calendar.title}" 언제 만날까요? 안 되는 날을 표시해 주세요.`,
+          url,
+        });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      }
+    }
+
     try {
       await navigator.clipboard.writeText(url);
-      debugLog('CALENDAR_DETAIL', '링크 복사 성공', { url });
-      setShareCopied(true);
-      setTimeout(() => {
-        setShareCopied(false);
-      }, 2000);
-    } catch (err: any) {
-      debugError('CALENDAR_DETAIL', '링크 복사 실패', err);
-      // 클립보드 API가 실패하면 fallback으로 input 요소 사용
+      showToast('링크를 복사했어요');
+    } catch {
       const textArea = document.createElement('textarea');
       textArea.value = url;
       textArea.style.position = 'fixed';
       textArea.style.opacity = '0';
       document.body.appendChild(textArea);
       textArea.select();
-      try {
-        document.execCommand('copy');
-        setShareCopied(true);
-        setTimeout(() => {
-          setShareCopied(false);
-        }, 2000);
-      } catch (fallbackErr) {
-        alert('링크 복사에 실패했습니다. 수동으로 복사해주세요: ' + url);
-      }
+      const copied = document.execCommand('copy');
       document.body.removeChild(textArea);
+      if (copied) showToast('링크를 복사했어요');
+      else showToast(`복사하지 못했어요. 직접 복사해 주세요: ${url}`, 'error');
     }
   };
 
-  // 디버깅: 렌더링 상태 로그
-  useEffect(() => {
-    debugLog('CALENDAR_DETAIL', '렌더링 상태', {
-      loading,
-      error,
-      hasCalendar: !!calendar,
-      code,
-    });
-  }, [loading, error, calendar, code]);
+  const handlePasswordCorrect = (inputPassword: string) => {
+    if (!calendar) return;
+    if (calendar.password && inputPassword === calendar.password) {
+      localStorage.setItem(`calendar_auth_${calendar.id}`, 'true');
+      setPasswordVerified(true);
+      setShowPasswordModal(false);
+      setPasswordError('');
+    } else {
+      setPasswordError('비밀번호가 일치하지 않습니다.');
+    }
+  };
 
+  const handleProfileSelect = (profile: Profile) => {
+    if (!calendar) return;
+    // 달력 주인은 첫 생성 프로필로 고정
+    if (isOwner && profiles.length > 0 && profile.id !== profiles[0].id) return;
+    setSelectedProfileId(calendar.id, profile.id);
+    setSelectedProfile(profile);
+    setShowProfileModal(false);
+  };
+
+  const goCreate = () =>
+    navigate(currentUser ? '/calendar/create' : '/login?redirect=/calendar/create');
+
+  // ── 화면: 로딩 / 오류 / 비밀번호 ──
   if (loading) {
-    debugLog('CALENDAR_DETAIL', '로딩 화면 표시');
     return (
-      <div className="calendar-detail-page">
-        <div className="calendar-detail-container">
-          <div className="loading">
-            <p>로딩 중...</p>
-            <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
-              코드: {code || '없음'}
-            </p>
+      <div className="cd-page">
+        <div className="cd-shell" aria-busy="true" aria-label="달력을 불러오는 중">
+          <div className="cd-skel cd-skel-title" />
+          <div className="cd-skel cd-skel-line" />
+          <div className="cd-layout">
+            <div className="cd-skel cd-skel-board" />
+            <div className="cd-skel cd-skel-panel" />
           </div>
         </div>
       </div>
@@ -745,29 +458,17 @@ export function CalendarDetail() {
   }
 
   if (error || !calendar) {
-    debugLog('CALENDAR_DETAIL', '에러 화면 표시', { error, hasCalendar: !!calendar });
     return (
-      <div className="calendar-detail-page">
-        <div className="calendar-detail-container">
-          <div className="error-message">
-            <h2>오류 발생</h2>
-            <p>{error || '달력을 찾을 수 없습니다.'}</p>
-            {code && (
-              <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                요청한 코드: <strong>{code.toUpperCase()}</strong>
-              </p>
-            )}
-            <div style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-              <p>문제 해결 방법:</p>
-              <ul style={{ textAlign: 'left', display: 'inline-block' }}>
-                <li>코드가 정확한지 확인해주세요</li>
-                <li>Firestore 보안 규칙이 올바르게 설정되었는지 확인해주세요</li>
-                <li>브라우저 콘솔에서 에러 메시지를 확인해주세요</li>
-              </ul>
+      <div className="cd-page">
+        <div className="cd-shell">
+          <div className="cd-state">
+            <div className="cd-state-icon" aria-hidden="true">
+              🗓️
             </div>
-          </div>
-          <div style={{ marginTop: '1.5rem' }}>
-            <button onClick={() => navigate('/')} className="btn btn-primary">
+            <h1>달력을 찾을 수 없어요</h1>
+            <p>{error || '링크가 정확한지 다시 확인해 주세요.'}</p>
+            {code && <p className="cd-state-code">요청한 코드 · {code}</p>}
+            <button type="button" className="cd-btn cd-btn-primary" onClick={() => navigate('/')}>
               홈으로 돌아가기
             </button>
           </div>
@@ -776,15 +477,23 @@ export function CalendarDetail() {
     );
   }
 
-  // 비밀번호가 필요한데 인증되지 않은 경우
-  if (calendar.usePassword && calendar.password && !passwordVerified) {
+  if (!unlocked) {
     return (
-      <>
-        <div className="calendar-detail-page">
-          <div className="calendar-detail-container">
-            <div className="loading">
-              <p>비밀번호 입력이 필요합니다.</p>
+      <div className="cd-page">
+        <div className="cd-shell">
+          <div className="cd-state">
+            <div className="cd-state-icon" aria-hidden="true">
+              🔒
             </div>
+            <h1>{calendar.title}</h1>
+            <p>비공개 달력이에요. 비밀번호를 입력하면 볼 수 있어요.</p>
+            <button
+              type="button"
+              className="cd-btn cd-btn-primary"
+              onClick={() => setShowPasswordModal(true)}
+            >
+              비밀번호 입력
+            </button>
           </div>
         </div>
         <PasswordModal
@@ -797,333 +506,494 @@ export function CalendarDetail() {
           onPasswordCorrect={handlePasswordCorrect}
           error={passwordError}
         />
-      </>
+      </div>
     );
   }
 
-  const daysInMonth = getDaysInMonth(year, month);
-  const monthNames = [
-    '1월', '2월', '3월', '4월', '5월', '6월',
-    '7월', '8월', '9월', '10월', '11월', '12월'
+  // ── 화면: 본문 ──
+  const { year, month } = viewMonth;
+  const isThisMonth = year === now.getFullYear() && month === now.getMonth();
+  const selectedDay = index.get(selectedDate);
+  const myBusy = selectedProfile ? selectedDay?.get(selectedProfile.id) : undefined;
+  const myMode: MyMode =
+    myBusy?.kind === 'allDay'
+      ? 'allDay'
+      : myBusy?.kind === 'hours' || hourModeDate === selectedDate
+        ? 'hours'
+        : 'free';
+  const selectedPast = selectedDate < todayKey;
+  const dayHighlight = highlight?.date === selectedDate ? highlight.range : null;
+  const isConfirmedDay = selectedDate === calendar.confirmedDate;
+  // 확정된 날은 확정 시간을 기본으로 강조
+  const rosterHighlight: HourRange | null =
+    dayHighlight ??
+    (isConfirmedDay && calendar.confirmedTime
+      ? [calendar.confirmedTime.start, calendar.confirmedTime.end]
+      : null);
+  const allDayBusy = profiles.filter((p) => selectedDay?.get(p.id)?.kind === 'allDay').length;
+  const partialBusy = profiles.filter((p) => selectedDay?.get(p.id)?.kind === 'hours').length;
+  const dayFree = commonFreeRanges(profileIds, selectedDay);
+
+  const daySummary =
+    profiles.length === 0
+      ? '아직 참여자가 없어요'
+      : allDayBusy + partialBusy === 0
+        ? `${profiles.length}명 모두 종일 가능해요`
+        : [
+            allDayBusy > 0 && `${allDayBusy}명 종일 안 됨`,
+            partialBusy > 0 && `${partialBusy}명 일부 시간 안 됨`,
+            dayFree.length > 0 ? '겹치는 시간 있음' : '겹치는 시간 없음',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+
+  const modeOptions: Array<{ value: MyMode; label: string }> = [
+    { value: 'free', label: '가능' },
+    { value: 'allDay', label: '종일 안 돼요' },
+    { value: 'hours', label: '시간 선택' },
   ];
 
-  // 각 요일별 날짜 배열 생성
-  const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-  const daysByWeekday: { [key: number]: number[] } = {};
-  
-  // 각 요일별 배열 초기화
-  for (let i = 0; i < 7; i++) {
-    daysByWeekday[i] = [];
-  }
-  
-  // 요일별 날짜  분류
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day);
-    const weekdayIndex = date.getDay();
-    daysByWeekday[weekdayIndex].push(day);
-  }
-
-  // 각 날짜의 주차(week) 계산 함수
-  const getWeekOfMonth = (day: number): number => {
-    const firstDate = new Date(year, month, 1);
-    const daysDiff = day - 1;
-    const weekNumber = Math.floor((firstDate.getDay() + daysDiff) / 7);
-    return weekNumber;
-  };
-
-  // 각 요일별로 주차별로 그룹화
-  const daysByWeekdayAndWeek: { [key: number]: { [week: number]: number } } = {};
-  weekDays.forEach((_, weekdayIndex) => {
-    daysByWeekdayAndWeek[weekdayIndex] = {};
-    daysByWeekday[weekdayIndex].forEach((day) => {
-      const week = getWeekOfMonth(day);
-      daysByWeekdayAndWeek[weekdayIndex][week] = day;
-    });
-  });
-
-  // 최대 주차 수 계산
-  const maxWeek = Math.max(
-    ...weekDays.map((_, weekdayIndex) => {
-      const weeks = Object.keys(daysByWeekdayAndWeek[weekdayIndex]).map(Number);
-      return weeks.length > 0 ? Math.max(...weeks) : -1;
-    })
-  );
-
   return (
-    <div className="calendar-detail-page">
-      <div className="calendar-detail-container" ref={calendarContainerRef}>
-        <div className="calendar-header">
-          <div className="calendar-header-top">
-            <h1>{calendar.title}</h1>
-            <div className="calendar-header-actions">
-              {selectedProfile && (() => {
-                const isOwner = !!currentUser && calendar.createdBy === currentUser.uid;
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setShowProfileModal(true)}
-                    className={`profile-chip${isOwner ? ' profile-chip-locked' : ''}`}
-                    title={isOwner ? '주인 프로필 (고정) — 다른 프로필 관리' : '프로필 변경'}
-                  >
-                    <span
-                      className="profile-chip-avatar"
-                      style={{ backgroundColor: selectedProfile.color }}
-                    >
-                      {selectedProfile.name.charAt(0)}
-                    </span>
-                    <span className="profile-chip-name">{selectedProfile.name}</span>
-                  </button>
-                );
-              })()}
-              <button
-                onClick={handleShare}
-                className="btn btn-share"
-                title="링크 복사"
-              >
-                {shareCopied ? (
-                  <>
-                    <span className="share-icon">✓</span>
-                    <span>복사됨!</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="share-icon">🔗</span>
-                    <span>공유</span>
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  if (currentUser) {
-                    navigate('/calendar/create');
-                  } else {
-                    navigate('/login?redirect=/calendar/create');
-                  }
-                }}
-                className="btn btn-primary btn-create-calendar"
-              >
-                새 달력 만들기
-              </button>
+    <div className="cd-page">
+      <div className="cd-shell">
+        <header className="cd-top">
+          <div className="cd-top-main">
+            <h1 className="cd-title">{calendar.title}</h1>
+            <div className="cd-meta">
+              <span className="cd-code">#{calendar.code}</span>
+              <span>참여 {profiles.length}명</span>
+              {calendar.usePassword && <span>🔒 비공개</span>}
             </div>
           </div>
-          <div className="calendar-info">
-            <span className="code-badge">코드: {calendar.code}</span>
-            <div className="confirmed-date-info">
-              <span className={`confirmed-badge ${!calendar.confirmedDate ? 'undecided' : ''}`}>
-                확정일: {calendar.confirmedDate || '미정'}
-              </span>
-              <span className={`confirmed-badge ${!calendar.confirmedLocation ? 'undecided' : ''}`}>
-                장소: {calendar.confirmedLocation || '미정'}
-              </span>
-              {profiles.length > 0 && (
-                <div className="profile-user-list">
-                  {profiles.map((p) => (
-                    <div key={p.id} className="profile-user-item">
-                      <span
-                        className="profile-user-swatch"
-                        style={{ backgroundColor: p.color }}
-                      />
-                      <span className="profile-user-name">{p.name}</span>
-                    </div>
-                  ))}
-                </div>
+          <div className="cd-top-actions">
+            {selectedProfile ? (
+              <button
+                type="button"
+                className="cd-me"
+                style={{ '--pc': selectedProfile.color } as CSSProperties}
+                onClick={() => setShowProfileModal(true)}
+                title={isOwner ? '내 프로필 (주인) · 참여자 관리' : '프로필 바꾸기'}
+              >
+                <span className="cd-avatar" aria-hidden="true">
+                  {selectedProfile.name.charAt(0)}
+                </span>
+                <span className="cd-me-name">{selectedProfile.name}</span>
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                  <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                </svg>
+              </button>
+            ) : (
+              <button type="button" className="cd-btn" onClick={() => setShowProfileModal(true)}>
+                프로필 선택
+              </button>
+            )}
+            <button type="button" className="cd-btn cd-btn-primary" onClick={handleShare}>
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
+                <path
+                  d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 11v4.5A1.5 1.5 0 005.5 17h9a1.5 1.5 0 001.5-1.5V11"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              공유
+            </button>
+          </div>
+        </header>
+
+        {calendar.confirmedDate ? (
+          <section className="cd-banner is-confirmed" aria-label="확정된 약속">
+            <div className="cd-banner-icon" aria-hidden="true">
+              📌
+            </div>
+            <div className="cd-banner-body">
+              <span className="cd-banner-eyebrow">약속 확정</span>
+              <strong>
+                {formatDateShort(calendar.confirmedDate)} · {formatConfirmedTime(calendar.confirmedTime)}
+              </strong>
+              <span>{calendar.confirmedLocation ? `📍 ${calendar.confirmedLocation}` : '장소 미정'}</span>
+            </div>
+            <div className="cd-banner-actions">
+              <a
+                className="cd-btn"
+                href={googleCalendarUrl({
+                  title: calendar.title,
+                  date: calendar.confirmedDate,
+                  time: calendar.confirmedTime,
+                  location: calendar.confirmedLocation,
+                  details: `${window.location.origin}/calendar/${calendar.code}`,
+                })}
+                target="_blank"
+                rel="noreferrer"
+              >
+                캘린더에 추가
+              </a>
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    className="cd-btn"
+                    onClick={() =>
+                      setConfirmDraft({ date: calendar.confirmedDate!, time: calendar.confirmedTime })
+                    }
+                  >
+                    변경
+                  </button>
+                  <button type="button" className="cd-btn cd-btn-danger" onClick={handleCancelConfirm}>
+                    확정 취소
+                  </button>
+                </>
               )}
-              {currentUser && calendar.createdBy === currentUser.uid && (calendar.confirmedDate || calendar.confirmedLocation) && (
+            </div>
+          </section>
+        ) : (
+          <section className="cd-banner" aria-label="진행 상황">
+            {profiles.length > 0 && (
+              <div className="cd-avatars" aria-hidden="true">
+                {profiles.slice(0, 5).map((p) => (
+                  <span key={p.id} className="cd-avatar" style={{ '--pc': p.color } as CSSProperties}>
+                    {p.name.charAt(0)}
+                  </span>
+                ))}
+                {profiles.length > 5 && <span className="cd-avatar is-more">+{profiles.length - 5}</span>}
+              </div>
+            )}
+            <div className="cd-banner-body">
+              {profiles.length === 0 ? (
+                <>
+                  <strong>친구들을 초대해 보세요</strong>
+                  <span>링크를 받은 사람은 각자 안 되는 날과 시간을 표시할 수 있어요.</span>
+                </>
+              ) : upcoming.length > 0 ? (
+                <>
+                  <strong>
+                    앞으로 4주 동안 모두 되는 날 {new Set(upcoming.map((s) => s.date)).size}일
+                  </strong>
+                  <span>
+                    가장 빠른 날 · {formatDateShort(upcoming[0].date)}{' '}
+                    {formatHourRange(upcoming[0].start, upcoming[0].end)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <strong>앞으로 4주 동안 모두 되는 날이 아직 없어요</strong>
+                  <span>시간 찾기에서 조건을 바꾸거나, 한 명 빠지는 시간을 확인해 보세요.</span>
+                </>
+              )}
+            </div>
+            <div className="cd-banner-actions">
+              {profiles.length === 0 ? (
+                <button type="button" className="cd-btn cd-btn-primary" onClick={handleShare}>
+                  링크 공유
+                </button>
+              ) : (
                 <button
-                  onClick={handleCancelConfirmedDate}
-                  className="btn btn-outline btn-small"
-                  style={{ marginLeft: '0.5rem' }}
+                  type="button"
+                  className="cd-btn cd-btn-primary"
+                  onClick={() => {
+                    setPanelTab('finder');
+                    scrollPanelIntoView(true);
+                  }}
                 >
-                  확정 취소
+                  ✨ 모두 되는 시간 찾기
                 </button>
               )}
             </div>
-          </div>
-        </div>
-
-        <div className="calendar-controls">
-          <div className="calendar-nav-segment">
-            <button
-              onClick={handlePrevMonth}
-              className="btn btn-outline btn-segment"
-            >
-              ← 이전 달
-            </button>
-            {isFutureMonth && (
-              <button
-                onClick={handleGoToday}
-                className="btn btn-outline btn-segment"
-                type="button"
-                aria-label="오늘 월로 이동"
-              >
-                돌아가기
-              </button>
-            )}
-          </div>
-          <h2>{year}년 {monthNames[month]}</h2>
-          <div className="calendar-nav-segment">
-            {isPastMonth && (
-              <button
-                onClick={handleGoToday}
-                className="btn btn-outline btn-segment"
-                type="button"
-                aria-label="오늘 월로 이동"
-              >
-                돌아가기
-              </button>
-            )}
-            <button
-              onClick={handleNextMonth}
-              className="btn btn-outline btn-segment"
-            >
-              다음 달 →
-            </button>
-          </div>
-        </div>
-
-        <div className="calendar-grid-vertical">
-          {weekDays.map((dayName, weekdayIndex) => {
-            return (
-              <div key={dayName} className="calendar-weekday-column">
-                <div className="weekday-header">{dayName}</div>
-                <div className="weekday-days">
-                  {/* 각 주차별로 날짜 배치 */}
-                  {Array.from({ length: maxWeek + 1 }).map((_, weekIndex) => {
-                    const day = daysByWeekdayAndWeek[weekdayIndex][weekIndex];
-                    
-                    if (!day) {
-                      // 해당 주차에 날짜가 없으면 빈칸
-                      return (
-                        <div key={`empty-${weekIndex}`} className="calendar-day empty"></div>
-                      );
-                    }
-
-                    const dateKey = getDateKey(year, month, day);
-                    const confirmed = isConfirmedDate(dateKey);
-                    const past = isPastDate(dateKey);
-                    const hasAnyUnavailable = profiles.some((p) =>
-                      isDateUnavailableForProfile(dateKey, p.id)
-                    );
-
-                    return (
-                      <div
-                        key={day}
-                        className={`calendar-day ${hasAnyUnavailable ? 'has-unavailable' : ''} ${confirmed ? 'confirmed' : ''} ${past ? 'past' : ''} ${longPressDate === dateKey ? 'long-pressing' : ''}`}
-                        onClick={() => handleDateClick(dateKey)}
-                        onMouseDown={() => handleLongPressStart(dateKey)}
-                        onMouseUp={handleLongPressEnd}
-                        onMouseLeave={handleLongPressEnd}
-                        onTouchStart={() => handleLongPressStart(dateKey)}
-                        onTouchEnd={handleLongPressEnd}
-                        onTouchCancel={handleLongPressEnd}
-                      >
-                        {profiles.length > 0 && (
-                          <div className="day-columns" aria-hidden="true">
-                            {profiles.map((p) => {
-                              const unavailable = isDateUnavailableForProfile(dateKey, p.id);
-                              return (
-                                <div
-                                  key={p.id}
-                                  className="day-column"
-                                  style={{
-                                    backgroundColor: unavailable ? p.color : 'transparent',
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                        <div className="day-number">{day}</div>
-                        {confirmed && <div className="confirmed-indicator">✓</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-
-        <div className="calendar-legend">
-          <div className="legend-item">
-            <div className="legend-color available"></div>
-            <span>가능</span>
-          </div>
-          {selectedProfile && (
-            <div className="legend-item">
-              <div
-                className="legend-color"
-                style={{ backgroundColor: '#ef4444' }}
-              />
-              <span>불가능 (클릭하기)</span>
-            </div>
-          )}
-          <div className="legend-item">
-            <div className="legend-color confirmed"></div>
-            <span>확정일 (길게누르기)</span>
-          </div>
-        </div>
-
-        {currentUser && calendar.createdBy === currentUser.uid && (
-          <div className="confirm-date-section">
-            <h3>약속 확정일 및 장소 설정</h3>
-            <div className="confirm-date-controls">
-              <input
-                type="date"
-                value={selectedDate || ''}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="date-input"
-                placeholder="날짜 선택"
-              />
-              <input
-                type="text"
-                value={selectedLocation}
-                readOnly
-                onClick={handleSearchAddress}
-                className="location-input location-input-readonly"
-                placeholder="주소 검색을 통해 입력해주세요 *"
-              />
-              <button
-                onClick={() => handleConfirmDate()}
-                disabled={!selectedDate || !selectedLocation.trim()}
-                className="btn btn-primary"
-              >
-                확정하기
-              </button>
-            </div>
-          </div>
+          </section>
         )}
 
-        <div className="calendar-actions">
-          {currentUser ? (
-            <button onClick={() => navigate('/')} className="btn btn-outline">
-              목록으로
-            </button>
-          ) : (
-            <button onClick={() => navigate('/')} className="btn btn-outline">
-              홈으로
-            </button>
-          )}
+        <div className="cd-layout">
+          <section className="cd-board" ref={boardRef} aria-label="달력">
+            <div className="cd-board-head">
+              <div className="cd-month-title-wrap">
+                <button
+                  type="button"
+                  className="cd-month-title"
+                  onClick={() => setMonthPickerOpen(true)}
+                  aria-haspopup="dialog"
+                  aria-expanded={monthPickerOpen}
+                >
+                  <strong>{month + 1}월</strong>
+                  <span>{year}</span>
+                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                    <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                </button>
+                {monthPickerOpen && (
+                  <MonthPicker
+                    year={year}
+                    month={month}
+                    onChange={(y, m) => setViewMonth({ year: y, month: m })}
+                    onClose={() => setMonthPickerOpen(false)}
+                  />
+                )}
+              </div>
+              <div className="cd-nav">
+                <button
+                  type="button"
+                  className="cd-circle-btn"
+                  onClick={() => moveMonth(-1)}
+                  aria-label="이전 달"
+                >
+                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                    <path d="M12 5l-5 5 5 5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="cd-today-btn"
+                  onClick={goToday}
+                  disabled={isThisMonth && selectedDate === todayKey}
+                >
+                  오늘
+                </button>
+                <button
+                  type="button"
+                  className="cd-circle-btn"
+                  onClick={() => moveMonth(1)}
+                  aria-label="다음 달"
+                >
+                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                    <path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="cd-toolbar">
+              <div className="cd-segmented" role="radiogroup" aria-label="달력 모드">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!paintMode}
+                  className={!paintMode ? 'is-on' : ''}
+                  onClick={() => setPaintMode(false)}
+                >
+                  날짜 보기
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={paintMode}
+                  className={paintMode ? 'is-on' : ''}
+                  onClick={() => {
+                    setPaintMode(true);
+                    if (!selectedProfile) setShowProfileModal(true);
+                  }}
+                >
+                  🖌 안 되는 날 칠하기
+                </button>
+              </div>
+              <div className="cd-legend" aria-hidden="true">
+                <span>
+                  <i className="is-allday" />
+                  종일 안 됨
+                </span>
+                <span>
+                  <i className="is-partial" />
+                  일부 시간
+                </span>
+                <span>
+                  <i className="is-free" />
+                  모두 가능
+                </span>
+              </div>
+            </div>
+
+            {paintMode && (
+              <p
+                className="cd-paint-hint"
+                style={{ '--pc': selectedProfile?.color ?? 'var(--accent)' } as CSSProperties}
+              >
+                {selectedProfile ? (
+                  <>
+                    누르거나 드래그해서 <b>{selectedProfile.name}</b>님이 <b>종일 안 되는 날</b>을
+                    칠하세요. 다시 누르면 지워져요. 시간 단위는 날짜 보기에서 고를 수 있어요.
+                  </>
+                ) : (
+                  '먼저 프로필을 선택해 주세요.'
+                )}
+              </p>
+            )}
+
+            <MonthGrid
+              year={year}
+              month={month}
+              todayKey={todayKey}
+              selectedDate={selectedDate}
+              confirmedDate={calendar.confirmedDate}
+              profiles={profiles}
+              index={index}
+              myProfileId={selectedProfile?.id ?? null}
+              paintMode={paintMode}
+              maxChips={isPhone ? 2 : 3}
+              onSelect={(date) => selectDate(date)}
+              onPaint={handlePaint}
+            />
+          </section>
+
+          <aside className="cd-panel" ref={panelRef} aria-label="상세">
+            <div className="cd-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panelTab === 'day'}
+                className={panelTab === 'day' ? 'is-on' : ''}
+                onClick={() => setPanelTab('day')}
+              >
+                날짜 상세
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={panelTab === 'finder'}
+                className={panelTab === 'finder' ? 'is-on' : ''}
+                onClick={() => setPanelTab('finder')}
+              >
+                ✨ 시간 찾기
+              </button>
+            </div>
+
+            {panelTab === 'finder' ? (
+              <SlotFinder
+                profiles={profiles}
+                index={index}
+                enteredIds={enteredIds}
+                now={now}
+                onPick={(s) => selectDate(s.date, [s.start, s.end])}
+              />
+            ) : (
+              <div className="cd-day">
+                <div className="cd-day-head">
+                  <div>
+                    <h2 className="cd-day-title">{formatDateLong(selectedDate)}</h2>
+                    <p className="cd-day-sub">{daySummary}</p>
+                  </div>
+                  {isConfirmedDay && (
+                    <span className="cd-pill is-success">확정된 날</span>
+                  )}
+                </div>
+
+                <section className="cd-card">
+                  <div className="cd-card-head">
+                    <h3>내 일정</h3>
+                    {selectedProfile && (
+                      <span
+                        className="cd-mine-who"
+                        style={{ '--pc': selectedProfile.color } as CSSProperties}
+                      >
+                        <span className="cd-dot" aria-hidden="true" />
+                        {selectedProfile.name}
+                      </span>
+                    )}
+                  </div>
+                  {selectedPast ? (
+                    <p className="cd-hint">지난 날짜는 바꿀 수 없어요.</p>
+                  ) : selectedProfile ? (
+                    <>
+                      <div className="cd-segmented is-wide" role="radiogroup" aria-label="내 상태">
+                        {modeOptions.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={myMode === opt.value}
+                            className={`${myMode === opt.value ? 'is-on' : ''} is-${opt.value}`}
+                            onClick={() => setMyMode(opt.value)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      {myMode === 'hours' && (
+                        <HourPainter
+                          key={selectedDate}
+                          hours={myBusy?.kind === 'hours' ? myBusy.hours : NO_HOURS}
+                          color={selectedProfile.color}
+                          onCommit={(hours) =>
+                            writeBusy(selectedDate, hours.length > 0 ? { kind: 'hours', hours } : null)
+                          }
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cd-btn cd-btn-primary cd-btn-block"
+                      onClick={() => setShowProfileModal(true)}
+                    >
+                      프로필 선택하고 내 일정 표시하기
+                    </button>
+                  )}
+                </section>
+
+                <section className="cd-card">
+                  <div className="cd-card-head">
+                    <h3>누가 안 되나요</h3>
+                    {profiles.length > 0 && (
+                      <span className="cd-card-sub">
+                        {allDayBusy + partialBusy}/{profiles.length}명 안 됨
+                      </span>
+                    )}
+                  </div>
+                  {profiles.length === 0 ? (
+                    <p className="cd-hint">링크를 공유하면 참여자가 여기에 나타나요.</p>
+                  ) : (
+                    <DayRoster
+                      profiles={profiles}
+                      day={selectedDay}
+                      myProfileId={selectedProfile?.id ?? null}
+                      enteredIds={enteredIds}
+                      highlight={rosterHighlight}
+                      onPickRange={(range) => setHighlight({ date: selectedDate, range })}
+                    />
+                  )}
+                </section>
+
+                {/* 확정된 날에는 배너의 "변경"을 쓰고, 다른 시간을 고른 경우에만 다시 확정 버튼을 보인다 */}
+                {isOwner && !selectedPast && (!isConfirmedDay || dayHighlight) && (
+                  <button
+                    type="button"
+                    className="cd-btn cd-btn-primary cd-btn-block cd-btn-lg"
+                    onClick={() =>
+                      setConfirmDraft({
+                        date: selectedDate,
+                        time: dayHighlight ? { start: dayHighlight[0], end: dayHighlight[1] } : null,
+                      })
+                    }
+                  >
+                    {dayHighlight
+                      ? `${formatHourRange(dayHighlight[0], dayHighlight[1])} · 이 시간으로 확정하기`
+                      : '이 날로 약속 확정하기'}
+                  </button>
+                )}
+              </div>
+            )}
+          </aside>
         </div>
+
+        <footer className="cd-footer">
+          <button type="button" className="cd-link-btn" onClick={() => navigate('/')}>
+            {currentUser ? '← 내 달력 목록' : '← 홈으로'}
+          </button>
+          <button type="button" className="cd-link-btn" onClick={goCreate}>
+            새 달력 만들기
+          </button>
+        </footer>
       </div>
 
-      <PasswordModal
-        isOpen={showPasswordModal}
-        calendarTitle={calendar.title}
-        onClose={() => {
-          setShowPasswordModal(false);
-          navigate('/');
-        }}
-        onPasswordCorrect={handlePasswordCorrect}
-        error={passwordError}
-      />
-
-      <AddressSearchModal
-        isOpen={showAddressModal}
-        onClose={() => setShowAddressModal(false)}
-        onSelectAddress={handleSelectAddress}
-      />
+      {confirmDraft && (
+        <ConfirmSheet
+          date={confirmDraft.date}
+          initialTime={confirmDraft.time}
+          initialLocation={calendar.confirmedLocation}
+          freeRanges={commonFreeRanges(profileIds, index.get(confirmDraft.date))}
+          onClose={() => setConfirmDraft(null)}
+          onSubmit={handleConfirmSubmit}
+        />
+      )}
 
       <ProfileSelectModal
         isOpen={showProfileModal}
@@ -1131,7 +1001,7 @@ export function CalendarDetail() {
         calendarTitle={calendar.title}
         onSelect={handleProfileSelect}
         onClose={selectedProfile ? () => setShowProfileModal(false) : undefined}
-        isOwner={!!currentUser && calendar.createdBy === currentUser.uid}
+        isOwner={isOwner}
         onProfileDeleted={(deletedId) => {
           if (selectedProfile?.id === deletedId) {
             clearSelectedProfileId(calendar.id);
@@ -1139,7 +1009,12 @@ export function CalendarDetail() {
           }
         }}
       />
+
+      {toast && (
+        <div key={toast.id} className={`cd-toast is-${toast.tone}`} role="status">
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
-

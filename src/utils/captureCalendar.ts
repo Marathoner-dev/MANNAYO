@@ -58,6 +58,8 @@ export async function captureCalendarImage(
       backgroundColor,
       pixelRatio,
       cacheBust: true,
+      // Pretendard dynamic subset은 폰트 파일이 수십 개라 임베드하지 않는다 (시스템 폰트로 캡처)
+      skipFonts: true,
       // 스타일 필터링 (필요한 스타일만 포함)
       filter: (node) => {
         // script, style 태그 제외

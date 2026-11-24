@@ -11,11 +11,37 @@ import {
   setDoc,
   orderBy,
   writeBatch,
+  onSnapshot,
+  type DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { auth } from './firebase';
-import type { Calendar } from '../types';
+import type { Calendar, ConfirmedTime } from '../types';
 import { debugLog, debugError, measurePerformance } from '../utils/debug';
+
+function toConfirmedTime(value: unknown): ConfirmedTime | null {
+  if (!value || typeof value !== 'object') return null;
+  const { start, end } = value as { start?: unknown; end?: unknown };
+  if (typeof start !== 'number' || typeof end !== 'number' || end <= start) return null;
+  return { start, end };
+}
+
+/** calendars 문서 → Calendar */
+function toCalendar(id: string, data: DocumentData): Calendar {
+  return {
+    id,
+    title: data.title,
+    code: data.code,
+    usePassword: data.usePassword,
+    password: data.password,
+    confirmedDate: data.confirmedDate ?? null,
+    confirmedTime: toConfirmedTime(data.confirmedTime),
+    confirmedLocation: data.confirmedLocation || null,
+    createdBy: data.createdBy,
+    participants: data.participants,
+    createdAt: data.createdAt?.toDate() || new Date(),
+  };
+}
 
 // Kakao Maps API 타입 정의
 declare global {
@@ -107,6 +133,7 @@ export async function createCalendar(
       usePassword,
       password: (usePassword ? password : null) as string | null,
       confirmedDate: null,
+      confirmedTime: null,
       confirmedLocation: null,
       createdBy: user.uid,
       participants: [user.uid],
@@ -152,21 +179,7 @@ export async function findCalendarByCode(code: string): Promise<Calendar | null>
         return null;
       }
 
-      const doc = querySnapshot.docs[0];
-      const data = doc.data();
-
-      const calendar = {
-        id: doc.id,
-        title: data.title,
-        code: data.code,
-        usePassword: data.usePassword,
-        password: data.password,
-        confirmedDate: data.confirmedDate,
-        confirmedLocation: data.confirmedLocation || null,
-        createdBy: data.createdBy,
-        participants: data.participants,
-        createdAt: data.createdAt?.toDate() || new Date(),
-      };
+      const calendar = toCalendar(querySnapshot.docs[0].id, querySnapshot.docs[0].data());
 
       debugLog('CALENDAR', '달력 찾기 완료', {
         id: calendar.id,
@@ -284,19 +297,7 @@ export async function getCalendars(): Promise<Calendar[]> {
       const calendars: Calendar[] = [];
 
       querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        calendars.push({
-          id: doc.id,
-          title: data.title,
-          code: data.code,
-          usePassword: data.usePassword,
-          password: data.password,
-          confirmedDate: data.confirmedDate,
-          confirmedLocation: data.confirmedLocation || null,
-          createdBy: data.createdBy,
-          participants: data.participants,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        });
+        calendars.push(toCalendar(doc.id, doc.data()));
       });
 
       debugLog('CALENDAR', 'getCalendars 완료', {
@@ -356,18 +357,7 @@ export async function getCalendarById(calendarId: string): Promise<Calendar | nu
         throw error;
       }
 
-      const calendar = {
-        id: calendarDoc.id,
-        title: data.title,
-        code: data.code,
-        usePassword: data.usePassword,
-        password: data.password,
-        confirmedDate: data.confirmedDate,
-        confirmedLocation: data.confirmedLocation || null,
-        createdBy: data.createdBy,
-        participants: data.participants,
-        createdAt: data.createdAt?.toDate() || new Date(),
-      };
+      const calendar = toCalendar(calendarDoc.id, data);
 
       debugLog('CALENDAR', 'getCalendarById 완료', {
         id: calendar.id,
@@ -412,14 +402,29 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 }
 
 /**
- * 약속 확정일 및 장소 설정
+ * 달력 문서 실시간 구독 (확정 정보 변경을 모든 참여자에게 즉시 반영)
+ */
+export function subscribeCalendar(
+  calendarId: string,
+  callback: (calendar: Calendar | null) => void
+): () => void {
+  return onSnapshot(
+    doc(db, 'calendars', calendarId),
+    (snap) => callback(snap.exists() ? toCalendar(snap.id, snap.data()) : null),
+    (error) => debugError('CALENDAR', 'subscribeCalendar 에러', error)
+  );
+}
+
+/**
+ * 약속 확정일·시간·장소 설정 (date가 null이면 확정 취소)
  */
 export async function setConfirmedDate(
   calendarId: string,
   date: string | null,
-  location: string | null = null
+  location: string | null = null,
+  time: ConfirmedTime | null = null
 ): Promise<void> {
-  debugLog('CALENDAR', 'setConfirmedDate 시작', { calendarId, date, location });
+  debugLog('CALENDAR', 'setConfirmedDate 시작', { calendarId, date, location, time });
 
   return measurePerformance('setConfirmedDate', async () => {
     const user = auth.currentUser;
@@ -448,8 +453,13 @@ export async function setConfirmedDate(
       }
 
       const calendarRef = doc(db, 'calendars', calendarId);
-      const updateData: { confirmedDate: string | null; confirmedLocation?: string | null } = {
+      const updateData: {
+        confirmedDate: string | null;
+        confirmedTime: ConfirmedTime | null;
+        confirmedLocation?: string | null;
+      } = {
         confirmedDate: date,
+        confirmedTime: date ? time : null,
       };
       
       // location이 명시적으로 전달된 경우에만 업데이트 (null도 포함)
@@ -673,6 +683,7 @@ export async function getAllCalendarsWithConfirmedLocation(): Promise<Calendar[]
           usePassword: false, // 공개 데이터에서는 항상 false
           password: null, // locations 컬렉션에 없음
           confirmedDate: null, // locations 컬렉션에는 confirmedDate 없음
+          confirmedTime: null,
           confirmedLocation: locationString,
           createdBy: '', // locations 컬렉션에는 createdBy 없음
           participants: [], // locations 컬렉션에는 참여자 목록 없음

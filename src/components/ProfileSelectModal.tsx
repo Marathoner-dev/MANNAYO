@@ -159,11 +159,8 @@ export function ProfileSelectModal({
       return;
     }
 
-    if (!newPassword.trim()) {
-      setError('비밀번호를 입력해주세요.');
-      return;
-    }
-    if (newPassword.length < 4) {
+    // 비밀번호는 선택 — 입력했다면 4자 이상
+    if (newPassword.trim() && newPassword.trim().length < 4) {
       setError('비밀번호는 4자 이상이어야 합니다.');
       return;
     }
@@ -348,7 +345,7 @@ export function ProfileSelectModal({
 
                 <div className="form-group">
                   <label htmlFor="profile-pwd">
-                    비밀번호 <span className="form-hint">(4자 이상)</span>
+                    비밀번호 <span className="form-hint">(선택 · 4자 이상)</span>
                   </label>
                   <input
                     id="profile-pwd"
@@ -358,10 +355,8 @@ export function ProfileSelectModal({
                       setNewPassword(e.target.value);
                       setError('');
                     }}
-                    placeholder="비밀번호를 입력하세요"
+                    placeholder="설정하면 나만 내 일정을 바꿀 수 있어요"
                     className="profile-name-input"
-                    minLength={4}
-                    required
                     disabled={loading}
                   />
                 </div>

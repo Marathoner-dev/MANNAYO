@@ -4,6 +4,7 @@ import { getCalendars, deleteCalendar } from '../services/calendar';
 import { useAuth } from '../contexts/AuthContext';
 import type { Calendar } from '../types';
 import { debugLog, debugError } from '../utils/debug';
+import { formatConfirmedTime, formatDateShort } from '../utils/schedule';
 import './Home.css';
 import './HomeLanding.css';
 
@@ -100,7 +101,9 @@ export function Home() {
                     <div className="info-item confirmed">
                       <span className="info-label">확정일:</span>
                       <span className={`info-value ${!calendar.confirmedDate ? 'undecided' : ''}`}>
-                        {calendar.confirmedDate || '미정'}
+                        {calendar.confirmedDate
+                          ? `${formatDateShort(calendar.confirmedDate)} ${formatConfirmedTime(calendar.confirmedTime)}`
+                          : '미정'}
                       </span>
                     </div>
                     <div className="info-item confirmed">

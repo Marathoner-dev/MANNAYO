@@ -45,13 +45,8 @@ export function CreateCalendar() {
       return;
     }
 
-    if (!profilePassword.trim()) {
-      debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 프로필 비밀번호 없음');
-      setError('프로필 비밀번호를 입력해주세요.');
-      return;
-    }
-
-    if (profilePassword.length < 4) {
+    // 프로필 비밀번호는 선택 — 입력했다면 4자 이상
+    if (profilePassword.trim() && profilePassword.trim().length < 4) {
       debugLog('CREATE_CALENDAR', '유효성 검사 실패 - 프로필 비밀번호 너무 짧음');
       setError('프로필 비밀번호는 4자 이상이어야 합니다.');
       return;
@@ -79,7 +74,7 @@ export function CreateCalendar() {
       );
       debugLog('CREATE_CALENDAR', '달력 생성 성공', { calendarId: calendar.id, code: calendar.code });
 
-      // 생성자 프로필 등록 (색상 임의 배정 + 비밀번호 필수)
+      // 생성자 프로필 등록 (색상 임의 배정, 비밀번호는 선택)
       try {
         const profile = await addProfile(
           calendar.id,
@@ -89,7 +84,9 @@ export function CreateCalendar() {
         );
         setSelectedProfileId(calendar.id, profile.id);
         // 본인이 만든 프로필은 자동 인증 처리
-        setProfileAuthenticated(profile.id);
+        if (profile.password) {
+          setProfileAuthenticated(profile.id);
+        }
         debugLog('CREATE_CALENDAR', '생성자 프로필 등록 완료', {
           calendarId: calendar.id,
           profileId: profile.id,
@@ -145,15 +142,15 @@ export function CreateCalendar() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="profilePassword">프로필 비밀번호 *</label>
+            <label htmlFor="profilePassword">
+              프로필 비밀번호 <span className="form-hint">(선택 · 4자 이상)</span>
+            </label>
             <input
               id="profilePassword"
               type="password"
               value={profilePassword}
               onChange={(e) => setProfilePassword(e.target.value)}
-              placeholder="4자 이상 입력"
-              required
-              minLength={4}
+              placeholder="설정하면 나만 내 일정을 바꿀 수 있어요"
               disabled={loading}
             />
           </div>

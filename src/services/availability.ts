@@ -1,237 +1,103 @@
 import {
   collection,
-  addDoc,
   doc,
-  getDocs,
-  query,
-  where,
-  updateDoc,
   onSnapshot,
+  query,
+  writeBatch,
+  type DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { auth } from './firebase';
 import type { Availability } from '../types';
-import { debugLog, debugError, measurePerformance } from '../utils/debug';
+import { availabilityDocId, type DayBusy } from '../utils/schedule';
+import { debugLog, debugError } from '../utils/debug';
+
+function toAvailability(id: string, calendarId: string, data: DocumentData): Availability {
+  return {
+    id,
+    calendarId, // 서브컬렉션이므로 calendarId는 부모에서 가져옴
+    date: data.date,
+    profileId: data.profileId || '',
+    isUnavailable: !!data.isUnavailable,
+    busyHours: Array.isArray(data.busyHours) ? data.busyHours : null,
+    updatedAt: (data.updatedAt ?? data.createdAt)?.toDate?.() ?? new Date(0),
+  };
+}
 
 /**
- * 프로필별 날짜 가용성 토글
- * (calendarId, date, profileId) 조합 단위로 문서를 관리
+ * 한 사람의 하루 상태 저장
+ * - busy가 null이면 "가능" → 문서 삭제
+ * - 문서 ID는 `${date}_${profileId}`로 고정해서 조회 없이 바로 쓴다 (로컬 스냅샷이 즉시 반영됨)
+ * - staleDocIds: 같은 (날짜, 프로필)의 예전 랜덤 ID 문서 — 함께 지워서 중복을 없앤다
  */
-export async function toggleAvailability(
+export async function setDayBusy(
   calendarId: string,
+  profileId: string,
   date: string,
-  profileId: string
-): Promise<Availability> {
-  const normalizedDate = date.trim();
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
-    const error = new Error(`잘못된 날짜 형식입니다: ${date}. YYYY-MM-DD 형식이어야 합니다.`);
-    debugError('AVAILABILITY', 'toggleAvailability - 날짜 형식 오류', error);
-    throw error;
+  busy: DayBusy | null,
+  staleDocIds: string[] = []
+): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`잘못된 날짜 형식입니다: ${date}`);
   }
-
   if (!profileId) {
-    const error = new Error('프로필이 선택되지 않았습니다.');
-    debugError('AVAILABILITY', 'toggleAvailability - profileId 누락', error);
-    throw error;
+    throw new Error('프로필이 선택되지 않았습니다.');
   }
 
-  debugLog('AVAILABILITY', 'toggleAvailability 시작', { calendarId, date: normalizedDate, profileId });
+  const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
+  const canonicalId = availabilityDocId(date, profileId);
+  const batch = writeBatch(db);
 
-  return measurePerformance('toggleAvailability', async () => {
-    try {
-      const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
+  for (const id of staleDocIds) {
+    if (id !== canonicalId) batch.delete(doc(availabilityRef, id));
+  }
 
-      // (date, profileId) 조합으로 검색
-      const q = query(
-        availabilityRef,
-        where('date', '==', normalizedDate),
-        where('profileId', '==', profileId)
-      );
+  const canonicalRef = doc(availabilityRef, canonicalId);
+  if (busy === null) {
+    batch.delete(canonicalRef);
+  } else {
+    batch.set(canonicalRef, {
+      date,
+      profileId,
+      isUnavailable: true,
+      busyHours: busy.kind === 'hours' ? busy.hours : null,
+      updatedAt: new Date(),
+    });
+  }
 
-      const querySnapshot = await getDocs(q);
+  debugLog('AVAILABILITY', 'setDayBusy', { calendarId, profileId, date, busy, staleDocIds });
 
-      if (querySnapshot.empty) {
-        debugLog('AVAILABILITY', '새 가용성 데이터 생성 (프로필별)', {
-          calendarId,
-          date: normalizedDate,
-          profileId,
-        });
-        const newAvailability = {
-          date: normalizedDate,
-          profileId,
-          isUnavailable: true,
-          createdAt: new Date(),
-        };
-
-        const docRef = await addDoc(availabilityRef, newAvailability);
-        debugLog('AVAILABILITY', 'Firestore 저장 완료', {
-          id: docRef.id,
-          calendarId,
-          date: normalizedDate,
-          profileId,
-        });
-
-        return {
-          id: docRef.id,
-          calendarId,
-          ...newAvailability,
-        };
-      } else {
-        // 기존 (date, profileId) 데이터 토글
-        const availabilityDoc = querySnapshot.docs[0];
-        const currentStatus = availabilityDoc.data().isUnavailable;
-        const newStatus = !currentStatus;
-
-        debugLog('AVAILABILITY', '가용성 토글 (프로필별)', {
-          id: availabilityDoc.id,
-          currentStatus,
-          newStatus,
-          calendarId,
-          date: normalizedDate,
-          profileId,
-        });
-
-        await updateDoc(doc(availabilityRef, availabilityDoc.id), {
-          isUnavailable: newStatus,
-        });
-
-        const data = availabilityDoc.data();
-        return {
-          id: availabilityDoc.id,
-          calendarId,
-          date: data.date,
-          profileId: data.profileId,
-          isUnavailable: newStatus,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        };
-      }
-    } catch (error) {
-      debugError('AVAILABILITY', 'toggleAvailability 실패', error);
-      throw error;
-    }
-  });
+  try {
+    await batch.commit();
+  } catch (error) {
+    debugError('AVAILABILITY', 'setDayBusy 실패', error);
+    throw error;
+  }
 }
 
 /**
- * 특정 달력의 가용성 데이터 조회
- */
-export async function getAvailabilityByCalendar(
-  calendarId: string
-): Promise<Availability[]> {
-  debugLog('AVAILABILITY', 'getAvailabilityByCalendar 시작', { calendarId });
-
-  return measurePerformance('getAvailabilityByCalendar', async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      const error = new Error('로그인이 필요합니다.');
-      debugError('AVAILABILITY', 'getAvailabilityByCalendar - 로그인 필요', error);
-      throw error;
-    }
-
-    try {
-      // 달력의 서브컬렉션으로 가용성 데이터 조회
-      const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
-      const q = query(availabilityRef);
-
-      const querySnapshot = await getDocs(q);
-      debugLog('AVAILABILITY', '가용성 데이터 조회 결과', {
-        calendarId,
-        count: querySnapshot.size,
-      });
-
-      const availability: Availability[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        availability.push({
-          id: doc.id,
-          calendarId, // 서브컬렉션이므로 calendarId는 부모에서 가져옴
-          date: data.date,
-          profileId: data.profileId || '',
-          isUnavailable: data.isUnavailable,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        });
-      });
-
-      debugLog('AVAILABILITY', 'getAvailabilityByCalendar 완료', {
-        calendarId,
-        count: availability.length,
-      });
-
-      return availability;
-    } catch (error) {
-      debugError('AVAILABILITY', 'getAvailabilityByCalendar 실패', error);
-      throw error;
-    }
-  });
-}
-
-/**
- * 특정 달력의 가용성 데이터 변경 감지 및 사이트 업데이트
- * Firestore의 실시간 변경사항을 감지하여 사이트 상태를 자동으로 업데이트합니다.
+ * 특정 달력의 가용성 데이터 실시간 구독
  */
 export function subscribeAvailability(
   calendarId: string,
   callback: (availability: Availability[]) => void
 ): () => void {
-  debugLog('AVAILABILITY', '가용성 데이터 변경 감지 시작', { calendarId });
-
-  // 달력의 서브컬렉션으로 가용성 데이터 변경 감지
   const availabilityRef = collection(db, 'calendars', calendarId, 'availability');
-  const q = query(availabilityRef);
 
-  const unsubscribe = onSnapshot(
-    q,
-    {
-      // 실시간 업데이트 옵션
-      includeMetadataChanges: false, // 메타데이터 변경은 제외 (실제 데이터 변경만 감지)
-    },
+  return onSnapshot(
+    query(availabilityRef),
     (querySnapshot) => {
-      const availability: Availability[] = [];
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        availability.push({
-          id: doc.id,
-          calendarId, // 서브컬렉션이므로 calendarId는 부모에서 가져옴
-          date: data.date,
-          profileId: data.profileId || '',
-          isUnavailable: data.isUnavailable,
-          createdAt: data.createdAt?.toDate() || new Date(),
-        });
-      });
-
-      debugLog('AVAILABILITY', '가용성 데이터 변경 감지 - 사이트 업데이트', {
+      const availability = querySnapshot.docs.map((d) =>
+        toAvailability(d.id, calendarId, d.data())
+      );
+      debugLog('AVAILABILITY', '가용성 변경 감지', {
         calendarId,
         count: availability.length,
-        snapshotSize: querySnapshot.size,
         hasPendingWrites: querySnapshot.metadata.hasPendingWrites,
       });
-
-      // 데이터베이스 변경사항을 감지하여 사이트 상태 업데이트
       callback(availability);
     },
     (error) => {
       debugError('AVAILABILITY', '가용성 데이터 변경 감지 에러', error);
-      // 에러가 발생해도 연결 유지 (재연결 시도)
     }
   );
-
-  return unsubscribe;
 }
-
-/**
- * 특정 (날짜, 프로필) 조합이 불가능한지 확인
- */
-export function isDateUnavailableForProfile(
-  availability: Availability[],
-  date: string,
-  profileId: string
-): boolean {
-  const match = availability.find(
-    (av) => av.date === date && av.profileId === profileId
-  );
-  return match?.isUnavailable || false;
-}
-

@@ -10,12 +10,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-default);
 }
 
 .address-search-header h2 {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 1.5rem;
 }
 
@@ -23,7 +23,7 @@
   background: none;
   border: none;
   font-size: 2rem;
-  color: #6b7280;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   width: 2rem;
@@ -37,8 +37,8 @@
 }
 
 .btn-close:hover {
-  background-color: #f3f4f6;
-  color: #1f2937;
+  background-color: var(--bg-badge);
+  color: var(--text-primary);
 }
 
 .address-search-container {
