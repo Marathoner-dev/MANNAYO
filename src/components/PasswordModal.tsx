@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import './PasswordModal.css';
+import { LockSimple } from '@phosphor-icons/react';
 
 interface PasswordModalProps {
   isOpen: boolean;
@@ -44,12 +44,15 @@ export function PasswordModal({
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content password-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>비밀번호 입력</h2>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <span className="modal-icon" aria-hidden="true">
+          <LockSimple size={24} weight="bold" />
+        </span>
+        <h2>비공개 달력이에요</h2>
         <p className="modal-description">
-          <strong>{calendarTitle}</strong> 달력을 보려면 비밀번호가 필요합니다.
+          <strong>{calendarTitle}</strong> 달력을 보려면 비밀번호를 입력해 주세요.
         </p>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="password">비밀번호</label>
@@ -61,26 +64,18 @@ export function PasswordModal({
                 setPassword(e.target.value);
                 setError('');
               }}
-              placeholder="비밀번호를 입력하세요"
-              className="password-input"
+              placeholder="비밀번호"
+              className="input"
               autoFocus
             />
-            {displayError && <div className="error-message">{displayError}</div>}
           </div>
+          {displayError && <div className="error-message">{displayError}</div>}
 
           <div className="modal-actions">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="btn btn-outline"
-            >
+            <button type="button" onClick={handleClose} className="btn btn-secondary">
               취소
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={!password.trim()}
-            >
+            <button type="submit" className="btn btn-primary" disabled={!password.trim()}>
               확인
             </button>
           </div>

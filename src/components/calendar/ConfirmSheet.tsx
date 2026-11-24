@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { MapPin, X } from '@phosphor-icons/react';
 import type { ConfirmedTime } from '../../types';
 import { AddressSearchModal } from '../AddressSearchModal';
 import { formatDateLong, formatHourRange, type HourRange } from '../../utils/schedule';
@@ -141,16 +142,17 @@ export function ConfirmSheet({
                 className={`cd-location-input${location ? '' : ' is-empty'}`}
                 onClick={() => setShowAddress(true)}
               >
-                {location || '주소 검색 (선택)'}
+                <MapPin size={16} weight="bold" aria-hidden="true" />
+                <span>{location || '주소 검색 (선택)'}</span>
               </button>
               {location && (
                 <button
                   type="button"
-                  className="cd-icon-btn"
+                  className="btn btn-icon"
                   onClick={() => setLocation('')}
                   aria-label="장소 지우기"
                 >
-                  ✕
+                  <X size={18} />
                 </button>
               )}
             </div>
@@ -160,7 +162,7 @@ export function ConfirmSheet({
           {error && <div className="error-message">{error}</div>}
 
           <div className="modal-actions">
-            <button type="button" className="btn btn-outline" onClick={onClose} disabled={saving}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
               취소
             </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>

@@ -1,162 +1,26 @@
-.login-page {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 80px);
-  padding: 2rem;
-  background-color: var(--bg-page);
-  color: var(--text-primary);
+/* 로그인: 공통 .page-narrow / .form-card 위에 로그인 전용만 */
+
+.login-card {
+  margin-top: 4vh;
 }
 
-.login-container {
-  background: var(--bg-container);
-  padding: 2rem;
-  border-radius: 0.5rem;
-  box-shadow: var(--shadow-default);
-  width: 100%;
-  max-width: 400px;
-}
-
-.login-container h1 {
-  text-align: center;
-  margin-bottom: 0.5rem;
-  color: var(--text-primary);
-}
-
-.login-subtitle {
-  text-align: center;
-  color: var(--text-secondary);
-  margin-bottom: 2rem;
-  font-size: 1rem;
-}
-
-/* 소셜 로그인 버튼 영역 - row, 텍스트/아이콘 세로정렬 */
-.social-login-buttons {
-  display: flex;
-  border: 1px solid var(--border-input);
-  border-radius: 0.4rem;
-  padding: 0.15rem;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
+.login-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
 
 .btn-google {
-  background-color: var(--bg-input);
-  color: var(--text-primary);
-  border-radius: 0.375rem;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  font-weight: 500;
-  padding: 0.75rem 1.5rem;
-  transition: all 0.2s;
-  width: 100%;
-  cursor: pointer;
+  gap: 10px;
 }
 
-.btn-google:hover:not(:disabled) {
-  background-color: var(--bg-section);
-  box-shadow: var(--shadow-default);
-  border-color: var(--border-input);
-}
-
-.btn-google:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* 아이콘 스타일 - 왼쪽에 고정 */
-.btn-google .social-icon {
-  position: absolute;
-  left: 1.5rem;
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-
-/* 텍스트 스타일 - 가운데 정렬 */
-.btn-google span {
-  display: block;
-  text-align: center;
-  width: 100%;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-}
-
-.form-group input {
-  padding: 0.75rem;
-  border: 1px solid var(--border-input);
-  border-radius: 0.375rem;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-  background-color: var(--bg-input);
-  color: var(--text-primary);
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: var(--border-input-focus);
-  box-shadow: var(--shadow-focus);
-}
-
-.form-group input::placeholder {
+.login-note {
   color: var(--text-muted);
-}
-
-.error-message {
-  color: var(--text-error);
-  font-size: 0.875rem;
-  padding: 0.5rem;
-  background-color: var(--bg-error);
-  border-radius: 0.375rem;
-  text-align: center;
-}
-
-.login-footer {
-  margin-top: 1.5rem;
-  text-align: center;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: var(--border-input-focus);
-  cursor: pointer;
-  text-decoration: underline;
-  font-size: 0.875rem;
-}
-
-.link-button:hover {
-  color: #1d4ed8;
-}
-
-.back-link {
-  display: block;
-  margin-top: 1rem;
-  text-align: center;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-size: 0.875rem;
-}
-
-.back-link:hover {
-  color: var(--text-primary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  word-break: keep-all;
 }

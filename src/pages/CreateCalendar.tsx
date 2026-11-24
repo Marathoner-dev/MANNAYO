@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from '@phosphor-icons/react';
 import { createCalendar } from '../services/calendar';
 import {
   addProfile,
@@ -9,7 +10,6 @@ import {
 } from '../services/profile';
 import { useAuth } from '../contexts/AuthContext';
 import { debugLog, debugError } from '../utils/debug';
-import './CreateCalendar.css';
 
 export function CreateCalendar() {
   const [title, setTitle] = useState('');
@@ -107,34 +107,43 @@ export function CreateCalendar() {
   };
 
   return (
-    <div className="create-calendar-page">
-      <div className="create-calendar-container">
-        <h1>공유달력 생성</h1>
-        <p className="description">새로운 공유달력을 만들어보세요</p>
+    <div className="page-narrow">
+      <div className="form-card">
+        <button type="button" onClick={() => navigate(-1)} className="back-link">
+          <ArrowLeft size={16} weight="bold" />
+          뒤로
+        </button>
+        <div className="form-card-head">
+          <h1>새 달력 만들기</h1>
+          <p>제목과 내 이름만 있으면 바로 시작해요. 만든 뒤 링크를 친구들에게 보내 주세요.</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="create-calendar-form">
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="title">달력 제목 *</label>
+            <label htmlFor="title">달력 이름</label>
             <input
               id="title"
               type="text"
+              className="input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 팀 회의 일정"
+              placeholder="예: 연말 동기 모임"
               required
               maxLength={50}
               disabled={loading}
+              autoFocus
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="profileName">내 프로필 이름 *</label>
+            <label htmlFor="profileName">내 이름</label>
             <input
               id="profileName"
               type="text"
+              className="input"
               value={profileName}
               onChange={(e) => setProfileName(e.target.value)}
-              placeholder="달력에서 표시할 이름"
+              placeholder="달력에 표시될 이름"
               required
               maxLength={20}
               disabled={loading}
@@ -143,11 +152,12 @@ export function CreateCalendar() {
 
           <div className="form-group">
             <label htmlFor="profilePassword">
-              프로필 비밀번호 <span className="form-hint">(선택 · 4자 이상)</span>
+              내 프로필 비밀번호 <span className="form-hint">선택 · 4자 이상</span>
             </label>
             <input
               id="profilePassword"
               type="password"
+              className="input"
               value={profilePassword}
               onChange={(e) => setProfilePassword(e.target.value)}
               placeholder="설정하면 나만 내 일정을 바꿀 수 있어요"
@@ -155,32 +165,34 @@ export function CreateCalendar() {
             />
           </div>
 
-          <div className="form-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={usePassword}
-                onChange={(e) => {
-                  setUsePassword(e.target.checked);
-                  if (!e.target.checked) {
-                    setPassword('');
-                  }
-                }}
-                disabled={loading}
-              />
-              <span>비밀번호 사용</span>
-            </label>
-          </div>
+          <label className="switch">
+            <span className="switch-text">
+              <strong>달력 비밀번호로 잠그기</strong>
+              <span>링크가 있어도 비밀번호를 아는 사람만 볼 수 있어요.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={usePassword}
+              onChange={(e) => {
+                setUsePassword(e.target.checked);
+                if (!e.target.checked) {
+                  setPassword('');
+                }
+              }}
+              disabled={loading}
+            />
+          </label>
 
           {usePassword && (
             <div className="form-group">
-              <label htmlFor="password">비밀번호 *</label>
+              <label htmlFor="password">달력 비밀번호</label>
               <input
                 id="password"
                 type="password"
+                className="input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="4자 이상 입력"
+                placeholder="4자 이상"
                 required={usePassword}
                 minLength={4}
                 disabled={loading}
@@ -191,20 +203,8 @@ export function CreateCalendar() {
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-actions">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn btn-outline"
-              disabled={loading}
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? '생성 중...' : '생성하기'}
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading}>
+              {loading ? '만드는 중…' : '달력 만들기'}
             </button>
           </div>
         </form>

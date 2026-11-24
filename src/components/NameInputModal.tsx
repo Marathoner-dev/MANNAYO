@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { updateUserName } from '../services/auth';
 import { debugError } from '../utils/debug';
-import './NameInputModal.css';
 
 interface NameInputModalProps {
   isOpen: boolean;
@@ -55,39 +54,29 @@ export function NameInputModal({ isOpen, currentName, onClose, onNameSet }: Name
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <h2>이름 설정</h2>
-        <p className="modal-description">사용할 이름을 입력해주세요</p>
-        
+        <h2>이름을 알려 주세요</h2>
+        <p className="modal-description">내 달력 목록과 상단에 표시돼요.</p>
+
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="이름을 입력하세요"
-              className="name-input"
-              disabled={loading}
-              autoFocus
-              maxLength={20}
-            />
-            {error && <div className="error-message">{error}</div>}
-          </div>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="이름"
+            aria-label="이름"
+            className="input"
+            disabled={loading}
+            autoFocus
+            maxLength={20}
+          />
+          {error && <div className="error-message">{error}</div>}
 
           <div className="modal-actions">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-outline"
-              disabled={loading}
-            >
-              취소
+            <button type="button" onClick={onClose} className="btn btn-secondary" disabled={loading}>
+              나중에
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading || !name.trim()}
-            >
-              {loading ? '저장 중...' : '저장'}
+            <button type="submit" className="btn btn-primary" disabled={loading || !name.trim()}>
+              {loading ? '저장하는 중…' : '저장'}
             </button>
           </div>
         </form>

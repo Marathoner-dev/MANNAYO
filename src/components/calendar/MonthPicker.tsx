@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 
 interface MonthPickerProps {
   year: number;
@@ -26,20 +27,20 @@ export function MonthPicker({ year, month, onChange, onClose }: MonthPickerProps
         <div className="cd-monthpicker-head">
           <button
             type="button"
-            className="cd-icon-btn"
+            className="btn btn-icon"
             onClick={() => setViewYear(viewYear - 1)}
             aria-label="이전 해"
           >
-            ‹
+            <CaretLeft size={18} weight="bold" />
           </button>
           <strong>{viewYear}년</strong>
           <button
             type="button"
-            className="cd-icon-btn"
+            className="btn btn-icon"
             onClick={() => setViewYear(viewYear + 1)}
             aria-label="다음 해"
           >
-            ›
+            <CaretRight size={18} weight="bold" />
           </button>
         </div>
         <div className="cd-monthpicker-grid">

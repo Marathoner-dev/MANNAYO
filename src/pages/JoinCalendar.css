@@ -1,98 +1,16 @@
-.join-calendar-page {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: calc(100vh - 80px);
-  padding: 2rem;
-  background-color: var(--bg-page);
-  color: var(--text-primary);
-}
-
-.join-calendar-container {
-  background: var(--bg-container);
-  padding: 2rem;
-  border-radius: 0.5rem;
-  box-shadow: var(--shadow-default);
-  width: 100%;
-  max-width: 500px;
-}
-
-.join-calendar-container h1 {
-  margin: 0 0 0.5rem 0;
-  color: var(--text-primary);
-}
-
-.description {
-  color: var(--text-secondary);
-  margin: 0 0 2rem 0;
-  font-size: 0.9rem;
-}
-
-.join-calendar-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-weight: 500;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-}
-
-.form-group input {
-  padding: 0.75rem;
-  border: 1px solid var(--border-input);
-  border-radius: 0.375rem;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-  background-color: var(--bg-input);
-  color: var(--text-primary);
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: var(--border-input-focus);
-  box-shadow: var(--shadow-focus);
-}
-
-.form-group input::placeholder {
-  color: var(--text-muted);
-}
-
-.form-group input:disabled {
-  background-color: var(--bg-section);
-  cursor: not-allowed;
-}
-
-.form-hint {
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.error-message {
-  color: var(--text-error);
-  font-size: 0.875rem;
-  padding: 0.75rem;
-  background-color: var(--bg-error);
-  border-radius: 0.375rem;
+/* 코드 입력: 고정폭 글자로 크게, 가운데 정렬 (.input 공통보다 우선) */
+.input.code-input {
+  height: 64px;
+  padding-left: calc(16px + 0.4em);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: 0.4em;
   text-align: center;
+  text-transform: uppercase;
 }
 
-.form-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  margin-top: 0.5rem;
-}
-
-.form-actions .btn {
-  min-width: 100px;
+.code-input::placeholder {
+  letter-spacing: 0.4em;
+  font-weight: 500;
 }

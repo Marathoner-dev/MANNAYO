@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CaretRight, LockSimple, Plus, Trash, X } from '@phosphor-icons/react';
 import {
   addProfile,
   subscribeProfiles,
@@ -204,22 +205,17 @@ export function ProfileSelectModal({
         onClick={(e) => e.stopPropagation()}
       >
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="profile-modal-close"
-            aria-label="닫기"
-          >
-            ✕
+          <button type="button" onClick={onClose} className="btn btn-icon modal-close" aria-label="닫기">
+            <X size={20} />
           </button>
         )}
         {view === 'password' && pendingProfile ? (
           <>
             <h2>비밀번호 입력</h2>
             <p className="modal-description">
-              <strong>{pendingProfile.name}</strong> 프로필은 비밀번호로 보호되어 있습니다.
+              <strong>{pendingProfile.name}</strong> 프로필은 비밀번호로 잠겨 있어요.
             </p>
-            <form onSubmit={handleVerifyPassword} className="profile-add-form">
+            <form onSubmit={handleVerifyPassword}>
               <div className="form-group">
                 <label htmlFor="profile-pwd-input">비밀번호</label>
                 <input
@@ -230,12 +226,12 @@ export function ProfileSelectModal({
                     setPasswordInput(e.target.value);
                     setError('');
                   }}
-                  placeholder="비밀번호를 입력하세요"
-                  className="profile-name-input"
+                  placeholder="비밀번호"
+                  className="input"
                   autoFocus
                 />
-                {error && <div className="error-message">{error}</div>}
               </div>
+              {error && <div className="error-message">{error}</div>}
               <div className="modal-actions">
                 <button
                   type="button"
@@ -245,7 +241,7 @@ export function ProfileSelectModal({
                     setPasswordInput('');
                     setError('');
                   }}
-                  className="btn btn-outline"
+                  className="btn btn-secondary"
                 >
                   뒤로
                 </button>
@@ -259,26 +255,95 @@ export function ProfileSelectModal({
               </div>
             </form>
           </>
+        ) : view === 'add' ? (
+          <>
+            <h2>새 프로필</h2>
+            <p className="modal-description">
+              <strong>{calendarTitle}</strong> 달력에 표시될 이름을 정해요.
+            </p>
+            <form onSubmit={handleAddNew}>
+              <div className="form-group">
+                <label htmlFor="profile-name">이름</label>
+                <input
+                  id="profile-name"
+                  type="text"
+                  value={newName}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="예: 민수"
+                  className="input"
+                  maxLength={20}
+                  autoFocus
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="profile-pwd">
+                  비밀번호 <span className="form-hint">선택 · 4자 이상</span>
+                </label>
+                <input
+                  id="profile-pwd"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setError('');
+                  }}
+                  placeholder="설정하면 나만 내 일정을 바꿀 수 있어요"
+                  className="input"
+                  disabled={loading}
+                />
+              </div>
+
+              {error && <div className="error-message">{error}</div>}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('list');
+                    setNewName('');
+                    setNewPassword('');
+                    setError('');
+                  }}
+                  className="btn btn-secondary"
+                  disabled={loading}
+                >
+                  뒤로
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={loading || !newName.trim()}
+                >
+                  {loading ? '추가하는 중…' : '추가하기'}
+                </button>
+              </div>
+            </form>
+          </>
         ) : (
           <>
-            <h2>프로필 선택</h2>
+            <h2>누구세요?</h2>
             <p className="modal-description">
-              <strong>{calendarTitle}</strong> 달력에서 사용할 프로필을 선택하세요.
+              <strong>{calendarTitle}</strong> 달력에서 쓸 내 프로필을 골라 주세요.
             </p>
 
-            {profiles.length > 0 && view === 'list' && (() => {
+            {profiles.length > 0 ? (() => {
               const sorted = [...profiles].sort(
                 (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
               );
               const ownerProfileId = sorted[0]?.id;
               return (
-                <div className="profile-list">
+                <ul className="profile-list">
                   {sorted.map((profile) => {
                     const isOwnerProfile = profile.id === ownerProfileId;
                     const canDelete = isOwner && !isOwnerProfile;
                     const isDeleting = deletingId === profile.id;
                     return (
-                      <div key={profile.id} className="profile-item-row">
+                      <li key={profile.id} className="profile-item-row">
                         <button
                           type="button"
                           className="profile-item"
@@ -292,109 +357,42 @@ export function ProfileSelectModal({
                             {profile.name.charAt(0)}
                           </span>
                           <span className="profile-name">{profile.name}</span>
+                          {isOwnerProfile && <span className="profile-owner">주인</span>}
                           {profile.password && (
-                            <span className="profile-lock" title="비밀번호 보호됨">
-                              🔒
-                            </span>
+                            <LockSimple size={16} className="profile-lock" aria-label="비밀번호 있음" />
                           )}
+                          <CaretRight size={16} className="profile-caret" aria-hidden="true" />
                         </button>
                         {canDelete && (
                           <button
                             type="button"
-                            className="profile-delete-btn"
+                            className="btn btn-icon profile-delete-btn"
                             onClick={(e) => handleDelete(e, profile)}
                             disabled={isDeleting || loading}
-                            title="프로필 삭제"
                             aria-label={`${profile.name} 프로필 삭제`}
                           >
-                            {isDeleting ? '...' : '×'}
+                            <Trash size={18} />
                           </button>
                         )}
-                      </div>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               );
-            })()}
-
-            {profiles.length === 0 && view === 'list' && (
-              <p className="profile-empty">
-                아직 등록된 프로필이 없어요. 첫 프로필을 추가해보세요!
-              </p>
+            })() : (
+              <p className="profile-empty">아직 프로필이 없어요. 첫 프로필을 만들어 주세요.</p>
             )}
 
-            {view === 'add' ? (
-              <form onSubmit={handleAddNew} className="profile-add-form">
-                <div className="form-group">
-                  <label htmlFor="profile-name">프로필 이름</label>
-                  <input
-                    id="profile-name"
-                    type="text"
-                    value={newName}
-                    onChange={(e) => {
-                      setNewName(e.target.value);
-                      setError('');
-                    }}
-                    placeholder="이름을 입력하세요"
-                    className="profile-name-input"
-                    maxLength={20}
-                    autoFocus
-                    disabled={loading}
-                  />
-                </div>
+            {error && <div className="error-message">{error}</div>}
 
-                <div className="form-group">
-                  <label htmlFor="profile-pwd">
-                    비밀번호 <span className="form-hint">(선택 · 4자 이상)</span>
-                  </label>
-                  <input
-                    id="profile-pwd"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      setError('');
-                    }}
-                    placeholder="설정하면 나만 내 일정을 바꿀 수 있어요"
-                    className="profile-name-input"
-                    disabled={loading}
-                  />
-                </div>
-
-                {error && <div className="error-message">{error}</div>}
-
-                <div className="modal-actions">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setView('list');
-                      setNewName('');
-                      setNewPassword('');
-                      setError('');
-                    }}
-                    className="btn btn-outline"
-                    disabled={loading}
-                  >
-                    뒤로
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={loading || !newName.trim()}
-                  >
-                    {loading ? '추가 중...' : '추가하기'}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setView('add')}
-                className="btn btn-add-profile"
-              >
-                + 프로필 추가하기
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setView('add')}
+              className="btn btn-secondary btn-block"
+            >
+              <Plus size={18} weight="bold" />
+              새 프로필 추가
+            </button>
           </>
         )}
       </div>

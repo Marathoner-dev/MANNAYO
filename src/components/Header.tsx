@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { CalendarCheck, SignOut } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext';
 import { logout } from '../services/auth';
 import { debugError } from '../utils/debug';
@@ -16,39 +17,42 @@ export function Header() {
     }
   };
 
-  if (loading) {
-    return (
-      <header className="header">
-        <div className="container">로딩 중...</div>
-      </header>
-    );
-  }
+  const name = userData?.name || '사용자';
 
   return (
     <header className="header">
-      <div className="container">
-        <div className="logo-container">
-          <Link to="/" className="logo">
-            MANNAYO
-          </Link>
-        </div>
-        <nav className="nav">
-          {currentUser ? (
-            <>
-              <span className="user-name">{userData?.name || '사용자'}님</span>
-              <button onClick={handleLogout} className="btn btn-outline">
-                로그아웃
-              </button>
-            </>
-          ) : (
-            <Link to="/login" className="btn btn-primary">
-              로그인
-            </Link>
-          )}
-        </nav>
+      <div className="header-inner">
+        <Link to="/" className="brand" aria-label="MANNAYO 홈">
+          <span className="brand-mark" aria-hidden="true">
+            <CalendarCheck size={18} weight="bold" />
+          </span>
+          <span className="brand-word">MANNAYO</span>
+        </Link>
+
+        {/* 인증 확인 중에는 오른쪽을 비워 둔다 (깜빡임 방지) */}
+        {!loading && (
+          <nav className="header-nav">
+            {currentUser ? (
+              <>
+                <span className="header-user">
+                  <span className="header-avatar" aria-hidden="true">
+                    {name.charAt(0)}
+                  </span>
+                  <span className="header-name">{name}</span>
+                </span>
+                <button type="button" onClick={handleLogout} className="btn btn-ghost btn-sm">
+                  <SignOut size={18} />
+                  <span className="header-logout-label">로그아웃</span>
+                </button>
+              </>
+            ) : (
+              <Link to="/login" className="btn btn-primary btn-sm">
+                로그인
+              </Link>
+            )}
+          </nav>
+        )}
       </div>
     </header>
   );
 }
-
-

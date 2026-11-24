@@ -8,6 +8,20 @@ import {
   type CSSProperties,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  CalendarCheck,
+  CalendarX,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  Export,
+  LockSimple,
+  MapPin,
+  PaintBrush,
+  Plus,
+  Sparkle,
+} from '@phosphor-icons/react';
 import { findCalendarByCode, setConfirmedDate, subscribeCalendar } from '../services/calendar';
 import { setDayBusy, subscribeAvailability } from '../services/availability';
 import {
@@ -132,7 +146,7 @@ function CalendarDetailView({ code }: { code: string }) {
 
         // 공유 미리보기 메타 태그 (이미지 캡처 전 기본값)
         const calendarUrl = `${window.location.origin}/calendar/${data.code}`;
-        const previewImage = `${window.location.origin}/calendar-preview.jpg`;
+        const previewImage = `${window.location.origin}/calendar-preview.png`;
         const description = `함께 약속 날짜를 정해보세요! "${data.title}" 달력에 참여하세요.`;
         setMetaTags({
           title: `${data.title} - 만나요`,
@@ -446,11 +460,11 @@ function CalendarDetailView({ code }: { code: string }) {
     return (
       <div className="cd-page">
         <div className="cd-shell" aria-busy="true" aria-label="달력을 불러오는 중">
-          <div className="cd-skel cd-skel-title" />
-          <div className="cd-skel cd-skel-line" />
+          <div className="skeleton cd-skel-title" />
+          <div className="skeleton cd-skel-line" />
           <div className="cd-layout">
-            <div className="cd-skel cd-skel-board" />
-            <div className="cd-skel cd-skel-panel" />
+            <div className="skeleton cd-skel-board" />
+            <div className="skeleton cd-skel-panel" />
           </div>
         </div>
       </div>
@@ -463,12 +477,12 @@ function CalendarDetailView({ code }: { code: string }) {
         <div className="cd-shell">
           <div className="cd-state">
             <div className="cd-state-icon" aria-hidden="true">
-              🗓️
+              <CalendarX size={28} />
             </div>
             <h1>달력을 찾을 수 없어요</h1>
             <p>{error || '링크가 정확한지 다시 확인해 주세요.'}</p>
             {code && <p className="cd-state-code">요청한 코드 · {code}</p>}
-            <button type="button" className="cd-btn cd-btn-primary" onClick={() => navigate('/')}>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
               홈으로 돌아가기
             </button>
           </div>
@@ -483,13 +497,13 @@ function CalendarDetailView({ code }: { code: string }) {
         <div className="cd-shell">
           <div className="cd-state">
             <div className="cd-state-icon" aria-hidden="true">
-              🔒
+              <LockSimple size={28} />
             </div>
             <h1>{calendar.title}</h1>
             <p>비공개 달력이에요. 비밀번호를 입력하면 볼 수 있어요.</p>
             <button
               type="button"
-              className="cd-btn cd-btn-primary"
+              className="btn btn-primary"
               onClick={() => setShowPasswordModal(true)}
             >
               비밀번호 입력
@@ -562,7 +576,12 @@ function CalendarDetailView({ code }: { code: string }) {
             <div className="cd-meta">
               <span className="cd-code">#{calendar.code}</span>
               <span>참여 {profiles.length}명</span>
-              {calendar.usePassword && <span>🔒 비공개</span>}
+              {calendar.usePassword && (
+                <span className="cd-meta-lock">
+                  <LockSimple size={14} weight="bold" />
+                  비공개
+                </span>
+              )}
             </div>
           </div>
           <div className="cd-top-actions">
@@ -578,26 +597,15 @@ function CalendarDetailView({ code }: { code: string }) {
                   {selectedProfile.name.charAt(0)}
                 </span>
                 <span className="cd-me-name">{selectedProfile.name}</span>
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                </svg>
+                <CaretDown size={14} weight="bold" aria-hidden="true" />
               </button>
             ) : (
-              <button type="button" className="cd-btn" onClick={() => setShowProfileModal(true)}>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowProfileModal(true)}>
                 프로필 선택
               </button>
             )}
-            <button type="button" className="cd-btn cd-btn-primary" onClick={handleShare}>
-              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
-                <path
-                  d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 11v4.5A1.5 1.5 0 005.5 17h9a1.5 1.5 0 001.5-1.5V11"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleShare}>
+              <Export size={18} weight="bold" />
               공유
             </button>
           </div>
@@ -606,18 +614,21 @@ function CalendarDetailView({ code }: { code: string }) {
         {calendar.confirmedDate ? (
           <section className="cd-banner is-confirmed" aria-label="확정된 약속">
             <div className="cd-banner-icon" aria-hidden="true">
-              📌
+              <CalendarCheck size={24} weight="fill" />
             </div>
             <div className="cd-banner-body">
               <span className="cd-banner-eyebrow">약속 확정</span>
               <strong>
                 {formatDateShort(calendar.confirmedDate)} · {formatConfirmedTime(calendar.confirmedTime)}
               </strong>
-              <span>{calendar.confirmedLocation ? `📍 ${calendar.confirmedLocation}` : '장소 미정'}</span>
+              <span className="cd-banner-place">
+                <MapPin size={14} weight="bold" aria-hidden="true" />
+                {calendar.confirmedLocation ?? '장소 미정'}
+              </span>
             </div>
             <div className="cd-banner-actions">
               <a
-                className="cd-btn"
+                className="btn btn-secondary btn-sm"
                 href={googleCalendarUrl({
                   title: calendar.title,
                   date: calendar.confirmedDate,
@@ -634,14 +645,14 @@ function CalendarDetailView({ code }: { code: string }) {
                 <>
                   <button
                     type="button"
-                    className="cd-btn"
+                    className="btn btn-secondary btn-sm"
                     onClick={() =>
                       setConfirmDraft({ date: calendar.confirmedDate!, time: calendar.confirmedTime })
                     }
                   >
                     변경
                   </button>
-                  <button type="button" className="cd-btn cd-btn-danger" onClick={handleCancelConfirm}>
+                  <button type="button" className="btn btn-danger btn-sm" onClick={handleCancelConfirm}>
                     확정 취소
                   </button>
                 </>
@@ -685,19 +696,20 @@ function CalendarDetailView({ code }: { code: string }) {
             </div>
             <div className="cd-banner-actions">
               {profiles.length === 0 ? (
-                <button type="button" className="cd-btn cd-btn-primary" onClick={handleShare}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleShare}>
                   링크 공유
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="cd-btn cd-btn-primary"
+                  className="btn btn-primary btn-sm"
                   onClick={() => {
                     setPanelTab('finder');
                     scrollPanelIntoView(true);
                   }}
                 >
-                  ✨ 모두 되는 시간 찾기
+                  <Sparkle size={18} weight="fill" />
+                  모두 되는 시간 찾기
                 </button>
               )}
             </div>
@@ -717,9 +729,7 @@ function CalendarDetailView({ code }: { code: string }) {
                 >
                   <strong>{month + 1}월</strong>
                   <span>{year}</span>
-                  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                    <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  </svg>
+                  <CaretDown size={16} weight="bold" aria-hidden="true" />
                 </button>
                 {monthPickerOpen && (
                   <MonthPicker
@@ -737,9 +747,7 @@ function CalendarDetailView({ code }: { code: string }) {
                   onClick={() => moveMonth(-1)}
                   aria-label="이전 달"
                 >
-                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                    <path d="M12 5l-5 5 5 5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                  </svg>
+                  <CaretLeft size={18} weight="bold" />
                 </button>
                 <button
                   type="button"
@@ -755,9 +763,7 @@ function CalendarDetailView({ code }: { code: string }) {
                   onClick={() => moveMonth(1)}
                   aria-label="다음 달"
                 >
-                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                    <path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                  </svg>
+                  <CaretRight size={18} weight="bold" />
                 </button>
               </div>
             </div>
@@ -783,7 +789,8 @@ function CalendarDetailView({ code }: { code: string }) {
                     if (!selectedProfile) setShowProfileModal(true);
                   }}
                 >
-                  🖌 안 되는 날 칠하기
+                  <PaintBrush size={16} weight="fill" />
+                  안 되는 날 칠하기
                 </button>
               </div>
               <div className="cd-legend" aria-hidden="true">
@@ -852,7 +859,8 @@ function CalendarDetailView({ code }: { code: string }) {
                 className={panelTab === 'finder' ? 'is-on' : ''}
                 onClick={() => setPanelTab('finder')}
               >
-                ✨ 시간 찾기
+                <Sparkle size={16} weight="fill" />
+                시간 찾기
               </button>
             </div>
 
@@ -921,7 +929,7 @@ function CalendarDetailView({ code }: { code: string }) {
                   ) : (
                     <button
                       type="button"
-                      className="cd-btn cd-btn-primary cd-btn-block"
+                      className="btn btn-primary btn-block"
                       onClick={() => setShowProfileModal(true)}
                     >
                       프로필 선택하고 내 일정 표시하기
@@ -956,7 +964,7 @@ function CalendarDetailView({ code }: { code: string }) {
                 {isOwner && !selectedPast && (!isConfirmedDay || dayHighlight) && (
                   <button
                     type="button"
-                    className="cd-btn cd-btn-primary cd-btn-block cd-btn-lg"
+                    className="btn btn-primary btn-lg btn-block"
                     onClick={() =>
                       setConfirmDraft({
                         date: selectedDate,
@@ -975,10 +983,12 @@ function CalendarDetailView({ code }: { code: string }) {
         </div>
 
         <footer className="cd-footer">
-          <button type="button" className="cd-link-btn" onClick={() => navigate('/')}>
-            {currentUser ? '← 내 달력 목록' : '← 홈으로'}
+          <button type="button" className="back-link" onClick={() => navigate('/')}>
+            <ArrowLeft size={16} weight="bold" />
+            {currentUser ? '내 달력 목록' : '홈으로'}
           </button>
-          <button type="button" className="cd-link-btn" onClick={goCreate}>
+          <button type="button" className="back-link" onClick={goCreate}>
+            <Plus size={16} weight="bold" />
             새 달력 만들기
           </button>
         </footer>

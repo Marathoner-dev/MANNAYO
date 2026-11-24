@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CalendarCheck } from '@phosphor-icons/react';
 import { signInWithGoogle } from '../services/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { NameInputModal } from '../components/NameInputModal';
@@ -66,30 +67,39 @@ export function Login() {
 
   return (
     <>
-      <div className="login-page">
-        <div className="login-container">
-          <h1>로그인</h1>
-          <p className="login-subtitle">구글 계정으로 간편하게 로그인하세요</p>
-          
-          <div className="social-login-buttons">
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="btn btn-google"
-              disabled={loading}
-            >
-              <img 
-                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-                alt="Google"
-                className="social-icon"
-              />
-              <span>{loading ? '처리 중...' : 'Google로 시작하기'}</span>
-            </button>
+      <div className="page-narrow">
+        <div className="form-card login-card">
+          <span className="login-mark" aria-hidden="true">
+            <CalendarCheck size={26} weight="bold" />
+          </span>
+          <div className="form-card-head">
+            <h1>만나요 시작하기</h1>
+            <p>구글 계정으로 로그인하면 달력을 만들고 내 달력 목록을 볼 수 있어요.</p>
           </div>
 
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="btn btn-outline btn-lg btn-block btn-google"
+            disabled={loading}
+          >
+            <img
+              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              alt=""
+              width={20}
+              height={20}
+            />
+            {loading ? '로그인하는 중…' : 'Google로 계속하기'}
+          </button>
+
           {error && <div className="error-message">{error}</div>}
-          
-          <Link to="/" className="back-link">← 홈으로</Link>
+
+          <p className="login-note">공유받은 달력은 로그인 없이도 열고 일정을 표시할 수 있어요.</p>
+
+          <Link to="/" className="back-link">
+            <ArrowLeft size={16} weight="bold" />
+            홈으로
+          </Link>
         </div>
       </div>
 

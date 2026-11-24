@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { X } from '@phosphor-icons/react';
 import { debugError } from '../utils/debug';
 import './AddressSearchModal.css';
 
@@ -66,13 +67,8 @@ export function AddressSearchModal({
       <div className="modal-content address-search-modal" onClick={(e) => e.stopPropagation()}>
         <div className="address-search-header">
           <h2>주소 검색</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-close"
-            aria-label="닫기"
-          >
-            ×
+          <button type="button" onClick={onClose} className="btn btn-icon" aria-label="닫기">
+            <X size={20} />
           </button>
         </div>
         <div className="address-search-container" ref={containerRef}></div>

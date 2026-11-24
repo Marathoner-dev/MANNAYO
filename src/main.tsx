@@ -1,6 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+// 공통 UI(버튼·입력·모달)를 페이지 CSS보다 먼저 불러와야 페이지별 덮어쓰기가 먹는다
+import './App.css'
 import App from './App.tsx'
 import { resetMetaTags } from './utils/metaTags'
 

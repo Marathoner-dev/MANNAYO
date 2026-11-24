@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from '@phosphor-icons/react';
 import { joinCalendar, findCalendarByCode } from '../services/calendar';
 import { useAuth } from '../contexts/AuthContext';
 import { debugError } from '../utils/debug';
@@ -75,37 +76,47 @@ export function JoinCalendar() {
   };
 
   return (
-    <div className="join-calendar-page">
-      <div className="join-calendar-container">
-        <h1>공유달력 참여</h1>
-        <p className="description">달력 코드를 입력하여 참여하세요</p>
+    <div className="page-narrow">
+      <div className="form-card">
+        <button type="button" onClick={() => navigate(-1)} className="back-link">
+          <ArrowLeft size={16} weight="bold" />
+          뒤로
+        </button>
+        <div className="form-card-head">
+          <h1>코드로 참여하기</h1>
+          <p>받은 6자리 코드를 넣으면 내 달력 목록에 추가돼요.</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="join-calendar-form">
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="code">달력 코드 *</label>
+            <label htmlFor="code">달력 코드</label>
             <input
               id="code"
               type="text"
+              className="input code-input"
               value={code}
               onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder="6자리 코드 입력"
+              placeholder="ABC123"
               required
               maxLength={6}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
               disabled={loading}
-              style={{ textTransform: 'uppercase', letterSpacing: '0.5rem', textAlign: 'center' }}
+              autoFocus
             />
-            <small className="form-hint">대문자 6자리 코드를 입력하세요</small>
           </div>
 
           {usePassword && (
             <div className="form-group">
-              <label htmlFor="password">비밀번호 *</label>
+              <label htmlFor="password">달력 비밀번호</label>
               <input
                 id="password"
                 type="password"
+                className="input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호 입력"
+                placeholder="비공개 달력이에요"
                 required={usePassword}
                 disabled={loading}
               />
@@ -116,19 +127,11 @@ export function JoinCalendar() {
 
           <div className="form-actions">
             <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn btn-outline"
-              disabled={loading}
-            >
-              취소
-            </button>
-            <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary btn-lg btn-block"
               disabled={loading || !code || code.length !== 6}
             >
-              {loading ? '참여 중...' : '참여하기'}
+              {loading ? '참여하는 중…' : '참여하기'}
             </button>
           </div>
         </form>

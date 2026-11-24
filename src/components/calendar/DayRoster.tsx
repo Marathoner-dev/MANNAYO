@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { Check } from '@phosphor-icons/react';
 import type { Profile } from '../../types';
 import {
   VIEW_END_HOUR,
@@ -106,7 +107,7 @@ export function DayRoster({
           <li className="cd-roster-row is-summary">
             <div className="cd-roster-who">
               <span className="cd-avatar is-all" aria-hidden="true">
-                ✓
+                <Check size={14} weight="bold" />
               </span>
               <span className="cd-roster-name">모두 가능</span>
               <span className="cd-roster-status">

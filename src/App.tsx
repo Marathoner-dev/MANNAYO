@@ -6,14 +6,17 @@ import { Login } from './pages/Login';
 import { CreateCalendar } from './pages/CreateCalendar';
 import { JoinCalendar } from './pages/JoinCalendar';
 import { CalendarDetail } from './pages/CalendarDetail';
-import './App.css';
 
 // Protected Route 컴포넌트
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { currentUser, loading } = useAuth();
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>로딩 중...</div>;
+    return (
+      <div className="page-narrow" aria-busy="true" aria-label="불러오는 중">
+        <div className="skeleton form-card-skeleton" />
+      </div>
+    );
   }
 
   if (!currentUser) {

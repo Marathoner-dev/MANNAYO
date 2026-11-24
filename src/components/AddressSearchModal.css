@@ -1,71 +1,33 @@
+/* 주소 검색: Daum 우편번호 iframe을 담는 모달 (틀은 App.css 공통) */
+
 .address-search-modal {
-  max-width: 500px;
-  width: 90%;
+  max-width: 520px;
   padding: 0;
   overflow: hidden;
 }
 
 .address-search-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.address-search-header h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.5rem;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.25rem;
-  transition: all 0.2s;
-  line-height: 1;
-}
-
-.btn-close:hover {
-  background-color: var(--bg-badge);
-  color: var(--text-primary);
+  padding: 16px 16px 12px 24px;
+  border-bottom: 1px solid var(--line);
 }
 
 .address-search-container {
+  position: relative;
   width: 100%;
   height: 500px;
-  min-height: 400px;
-  position: relative;
   overflow: hidden;
 }
 
-/* 모바일 반응형 */
-@media (max-width: 768px) {
-  .address-search-modal {
-    width: 95%;
-    max-width: none;
-  }
-
-  .address-search-header {
-    padding: 1rem 1.5rem;
-  }
-
-  .address-search-header h2 {
-    font-size: 1.25rem;
+@media (max-width: 640px) {
+  /* 시트 손잡이 대신 머리줄로 충분 */
+  .address-search-modal::before {
+    display: none;
   }
 
   .address-search-container {
-    height: 450px;
-    min-height: 350px;
+    height: 70dvh;
   }
 }

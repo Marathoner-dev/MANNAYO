@@ -1,114 +1,188 @@
-/* 로그인 이전 랜딩 페이지 스타일 */
+/* 로그인 전 소개 화면: 왼쪽 글 · 오른쪽 실제 화면, 아래 기능 3칸 (넓은 칸 1 + 작은 칸 2) */
 
-.home-landing {
-  position: relative;
-  min-height: 90vh;
+.landing {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 56px 20px 80px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 72px;
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   align-items: center;
-  overflow: hidden;
-  background-color: var(--bg-page);
+  gap: 48px;
 }
 
-/* 배경 이미지 */
-.home-landing::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: url('/calendar-preview.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  filter: blur(8px);
-  opacity: 0.3;
-  z-index: 0;
+.landing-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  animation: rise 0.6s var(--ease-out) both;
 }
 
-/* 배경 오버레이 (어둡게) */
-.home-landing::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 1;
+.landing-copy h1 {
+  font-size: clamp(2.25rem, 1.4rem + 2.6vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  word-break: keep-all;
 }
 
-@media (prefers-color-scheme: dark) {
-  .home-landing::after {
-    background-color: rgba(0, 0, 0, 0.7);
-  }
-}
-
-/* 컨텐츠 컨테이너 */
-.home-landing-content {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-  color: var(--text-inverse);
-  padding: 2rem;
-}
-
-/* 로고 */
-.home-landing-logo {
-  font-size: 4rem;
-  font-weight: bold;
-  margin-bottom: 2rem;
-  color: var(--text-inverse);
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  letter-spacing: 0.1em;
-}
-
-/* 로그인 버튼 */
-.home-landing-login-btn {
-  background-color: var(--text-inverse);
-  color: var(--bg-page);
-  border: 2px solid var(--text-inverse);
-  border-radius: 0.5rem;
-  padding: 1rem 2.5rem;
+.landing-copy p {
+  max-width: 34ch;
+  color: var(--text-secondary);
   font-size: 1.125rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  line-height: 1.6;
+  word-break: keep-all;
 }
 
-.home-landing-login-btn:hover {
-  background-color: rgba(255, 255, 255, 0.9);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+.landing-copy .btn {
+  margin-top: 8px;
 }
 
-.home-landing-login-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+.landing-shot {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: rise 0.7s 0.08s var(--ease-out) both;
 }
 
-/* 반응형 디자인 */
-@media (max-width: 768px) {
-  .home-landing-logo {
-    font-size: 2.5rem;
+.landing-shot img,
+.feature-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.feature {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 28px 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 넓은 칸: 강조색을 옅게 깔아 나머지 두 칸과 구분 */
+.feature-wide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  align-items: end;
+  gap: 32px;
+  padding: 36px 36px 0;
+  background: linear-gradient(160deg, var(--accent-soft), transparent 70%), var(--surface);
+}
+
+.feature-wide .feature-text {
+  align-self: center;
+  padding-bottom: 36px;
+}
+
+.feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.03em;
+  word-break: keep-all;
+}
+
+.feature-wide h2 {
+  font-size: 1.75rem;
+}
+
+.feature p {
+  max-width: 40ch;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* 캡처는 아래로 붙여서 카드 밖으로 이어지는 느낌을 준다 */
+.feature-shot {
+  margin-top: auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  box-shadow: var(--shadow-md);
+}
+
+/* 작은 두 칸은 같은 비율로 잘라 높이를 맞춘다 (위쪽 기준) */
+.feature:not(.feature-wide) .feature-shot {
+  aspect-ratio: 4 / 3;
+}
+
+.feature:not(.feature-wide) .feature-shot img {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+@media (max-width: 960px) {
+  .landing {
+    gap: 48px;
+    padding-top: 32px;
   }
 
-  .home-landing-login-btn {
-    padding: 0.875rem 2rem;
+  .landing-hero,
+  .feature-wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .landing-hero {
+    gap: 32px;
+  }
+
+  .feature-wide .feature-text {
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing {
+    padding: 24px 16px 56px;
+  }
+
+  .landing-copy p {
     font-size: 1rem;
   }
 
-  .home-landing-content {
-    padding: 1.5rem;
+  .landing-copy .btn {
+    width: 100%;
   }
-}
 
-@media (max-width: 480px) {
-  .home-landing-logo {
-    font-size: 2rem;
+  .landing-features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feature,
+  .feature-wide {
+    padding: 24px 20px 0;
+  }
+
+  .feature-wide h2 {
+    font-size: 1.375rem;
   }
 }
